@@ -72,16 +72,16 @@ jobs:
 
             - name: Install Poetry
               run: |
-                  pip install poetry
+                  pipx install poetry
                   poetry --version
 
             - name: Install Nox
               run: |
-                  pip install nox nox-poetry
+                  pipx install nox nox-poetry
                   nox --version
 
             - name: Install Rich
-              run: pip install rich
+              run: pipx install rich
 
             - name: Compute pre-commit cache key
               if: matrix.session == 'pre-commit'
