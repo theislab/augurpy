@@ -79,10 +79,8 @@ jobs:
               run: |
                   pipx install nox
                   pipx inject nox nox-poetry
+                  pipx inject nox rich
                   nox --version
-
-            - name: Install Rich
-              run: pip install rich
 
             - name: Compute pre-commit cache key
               if: matrix.session == 'pre-commit'
