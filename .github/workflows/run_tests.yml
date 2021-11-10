@@ -75,7 +75,7 @@ jobs:
                   pipx install poetry
                   poetry --version
 
-            - name: Install nox nox-poetry
+            - name: Install nox nox-poetry rich
               run: |
                   pipx install nox
                   pipx inject nox nox-poetry
@@ -141,14 +141,12 @@ jobs:
                   pipx install poetry
                   poetry --version
 
-            - name: Install nox nox-poetry
+            - name: Install nox nox-poetry rich
               run: |
                   pipx install nox
                   pipx inject nox nox-poetry
+                  pipx inject nox rich
                   nox --version
-
-            - name: Install Rich
-              run: pip install rich
 
             - name: Download coverage data
               uses: actions/download-artifact@v2.0.9
