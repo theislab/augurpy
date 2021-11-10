@@ -75,9 +75,10 @@ jobs:
                   pipx install poetry
                   poetry --version
 
-            - name: Install Nox
+            - name: Install nox nox-poetry
               run: |
-                  pipx install nox nox-poetry
+                  pipx install nox
+                  pipx install nox-poetry
                   nox --version
 
             - name: Install Rich
