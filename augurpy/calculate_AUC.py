@@ -27,23 +27,23 @@ def calculate_auc(
     """Calculates the Area under the Curve using the given classifier.
 
     Args:
-        input: Anndata or matrix containing gene expression values (genes in rows, cells in columns) and optionally meta
+        input: Anndata or matrix containing gene expression values (cells in rows, genes in columns) and optionally meta
             data about each cell.
-        meta: Optional data frame containing meta data about each cell.
-        label_col: column of the meta data frame or the anndata or matrix containing the condition labels for each cell
-            in the gene-by-cell expression matrix
-        cell_type_col: column of the meta data frame or the anndata or matrix containing the cell type labels for each
-            cell in the gene-by-cell expression matrix
+        meta: Optional Pandas DataFrame containing meta data about each cell.
+        label_col: column of the meta data or the Anndata or matrix containing the condition labels for each cell
+            in the cell-by-gene expression matrix
+        cell_type_col: column of the meta DataFrame or the Anndata or matrix containing the cell type labels for each
+            cell in the cell-by-gene expression matrix
         n_subsamples: number of random subsamples to draw from complete dataset for each cell type
         subsample_size: number of cells to subsample randomly per type from each experimental condition
-        folds: number of folds of cross-validati on to run
+        folds: number of folds to run cross validation on
         min_cells: minimum number of cells for a particular cell type in each condition in order to retain that type for
             analysis (depricated..)
         var_quantile: quantile of highly variable genes to retain for each cell type using the variable gene filter
         feature_perc: proportion of genes that are randomly selected as features for input to the classifier in each
             subsample using the random gene filter
         n_threads: number of threads to use for parallelization
-        show_progress: if TRUE display a progress bar for the analysis with estimated time remaining
+        show_progress: if `True` display a progress bar for the analysis with estimated time remaining
         augur_mode: one of default, velocity or permute. Setting augur_mode = "velocity" disables feature selection,
             assuming feature selection has been performed by the RNA velocity procedure to produce the input matrix,
             while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
@@ -55,27 +55,27 @@ def calculate_auc(
     Returns:
         A dictionary containing the following keys: Dict[X, y, celltypes, parameters, results, feature_importances, AUC]
         and the Anndata object with additional results layer.
-
     """
+    pass
 
 
 def draw_subsample(input: DataFrame, augur_mode: str, subsample_size: int, stratified: bool) -> DataFrame:
     """Subsample input.
 
     Args:
-        input: DataFrame containing gene expression values (genes in rows, cells in columns) along with cell type and
+        input: Pandas DataFrame containing gene expression values (cells in rows, genes in columns) along with cell type and
             condition
         augur_mode: one of default, velocity or permute. Setting augur_mode = "velocity" disables feature selection,
             assuming feature selection has been performed by the RNA velocity procedure to produce the input matrix,
             while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
             permuting the labels
         subsample_size: number of cells to subsample randomly per type from each experimental condition
-        stratified: if TRUE subsamples are stratified according to condition
+        stratified: if `True` subsamples are stratified according to condition
 
     Returns:
         Subsample of input of size subsample_size
-
     """
+    pass
 
 
 def subsample_cross_validate(
@@ -91,16 +91,19 @@ def subsample_cross_validate(
     """Cross validate subsample.
 
     Args:
-        input:
-        augur_mode:
-        subsample_size:
-        stratified:
-        estimator:
-        metrics:
-        folds:
-        subsample_idx:
+        input: Pandas DataFrame
+        augur_mode: one of default, velocity or permute. Setting augur_mode = "velocity" disables feature selection,
+            assuming feature selection has been performed by the RNA velocity procedure to produce the input matrix,
+            while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
+            permuting the labels
+        subsample_size: number of cells to subsample randomly per type from each experimental condition
+        stratified: if the sampling for cross validation is stratified or not
+        estimator: classifier
+        metrics: metrics to evaluate the cross validation
+        folds: number of folds to run cross validation on
+        subsample_idx: index of the subsample
 
     Returns:
         Results for each cross validation fold.
-
     """
+    pass

@@ -5,7 +5,7 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
 
 
-def run_cross_validate(
+def run_cross_validation(
     subsample: DataFrame,
     estimator: Union[RandomForestRegressor, RandomForestClassifier, LogisticRegression],
     metrics: List,
@@ -22,6 +22,6 @@ def run_cross_validate(
         subsample_idx: index of subsample
 
     Returns:
-        Data frame containing prediction metrics for each fold
-
+        Pandas DataFrame containing prediction metrics for each fold
     """
+    pass

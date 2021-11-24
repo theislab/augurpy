@@ -18,8 +18,8 @@ def create_estimator(
 
     Returns:
         Estimator object that classifies.
-
     """
+    pass
 
 
 def get_feature_importances(
@@ -28,9 +28,9 @@ def get_feature_importances(
     """Get feature importances with respect to this estimator.
 
     Args:
-        estimator: fitted classifier used to calculate importances
+        estimator: fitted classifier used to calculate feature importances
 
     Returns:
         Dictionary containing the importance of each feature
-
     """
+    pass
