@@ -2,7 +2,6 @@ from typing import Optional, Union
 
 from anndata import AnnData
 from pandas import DataFrame
-
 from scanpy.preprocessing import highly_variable_genes
 
 
@@ -27,31 +26,30 @@ def load(
         Anndata object containing gene expression values (cells in rows, genes in columns) and cell type, label as obs
     """
     if isinstance(input, AnnData):
-        input.obs = input.obs.rename(columns={cell_type_col:'cell_type', label_col:'label'})
+        input.obs = input.obs.rename(columns={cell_type_col: "cell_type", label_col: "label"})
         out = input
 
     elif isinstance(input, DataFrame):
-        try: 
+        try:
             cell_type = input[cell_type_col]
             label = input[label_col]
         except KeyError:
-            print('No column names matching cell_type_col and label_col. Looking in meta data.')
-            try: 
+            print("No column names matching cell_type_col and label_col. Looking in meta data.")
+            try:
                 cell_type = meta[cell_type_col]
                 label = meta[label_col]
             except (KeyError, TypeError):
-                raise Exception('Missing label and / or cell type column.')
+                raise Exception("Missing label and / or cell type column.") from None
 
             else:
-                print('Adding cell type and label from metadata.')
-                out = AnnData(X = input, obs={'cell_type': cell_type, 'label': label})
-            
-        else:
-            out = AnnData(X = input, obs={'cell_type': cell_type, 'label': label})
+                print("Adding cell type and label from metadata.")
+                out = AnnData(X=input, obs={"cell_type": cell_type, "label": label})
 
-    else: 
+        else:
+            out = AnnData(X=input, obs={"cell_type": cell_type, "label": label})
+
+    else:
         raise Exception("Not valid input.")
-        
 
     out = feature_selection(out)
 
@@ -63,7 +61,7 @@ def feature_selection(input: AnnData) -> AnnData:
 
     Args:
         input: Pandas DataFrame containing gene expression values (cells in rows, genes in columns)
-        
+
     Results:
         Anndata obejct with highly variable genes added as layer
     """
@@ -71,7 +69,6 @@ def feature_selection(input: AnnData) -> AnnData:
 
     if len(input.var_names) - 2 > min_features_for_selection:
         highly_variable_genes(input)
-        print('Taking highly variable genes.')
-        
+        print("Taking highly variable genes.")
 
     return input
