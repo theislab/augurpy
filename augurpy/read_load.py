@@ -1,10 +1,9 @@
 from typing import Optional, Union
 
-import anndata
 from anndata import AnnData
 from pandas import DataFrame
 
-# from scanpy.preprocessing import highly_variable_genes
+from scanpy.preprocessing import highly_variable_genes
 
 
 def load(
@@ -12,8 +11,7 @@ def load(
     meta: Optional[DataFrame] = None,
     label_col: str = "label_col",
     cell_type_col: str = "cell_type_col",
-    var_quantile: float = 0.5,
-) -> DataFrame:
+) -> AnnData:
     """Loads the input data.
 
     Args:
@@ -25,38 +23,55 @@ def load(
         cell_type_col: column of the meta DataFrame or the Anndata or matrix containing the cell type labels for each
             cell in the cell-by-gene expression matrix
 
-
     Returns:
-        Pandas DataFrame containing gene expression values (cells in rows, genes in columns), cell type and condition
+        Anndata object containing gene expression values (cells in rows, genes in columns) and cell type, label as obs
     """
-    if isinstance(input, anndata.AnnData):
-        out = input.to_df()
-        out["cell_type"] = input.obs[cell_type_col]
-        out["label"] = input.obs[label_col]
-        print("This is anndata.")
+    if isinstance(input, AnnData):
+        input.obs = input.obs.rename(columns={cell_type_col:'cell_type', label_col:'label'})
+        out = input
 
-    if isinstance(input, DataFrame):
-        # check if celltype and label columns are there, check meta data.
-        out = input.rename(columns={cell_type_col: "cell_type", label_col: "label"})
+    elif isinstance(input, DataFrame):
+        try: 
+            cell_type = input[cell_type_col]
+            label = input[label_col]
+        except KeyError:
+            print('No column names matching cell_type_col and label_col. Looking in meta data.')
+            try: 
+                cell_type = meta[cell_type_col]
+                label = meta[label_col]
+            except (KeyError, TypeError):
+                raise Exception('Missing label and / or cell type column.')
 
-    out = feature_selection(out, var_quantile)
+            else:
+                print('Adding cell type and label from metadata.')
+                out = AnnData(X = input, obs={'cell_type': cell_type, 'label': label})
+            
+        else:
+            out = AnnData(X = input, obs={'cell_type': cell_type, 'label': label})
+
+    else: 
+        raise Exception("Not valid input.")
+        
+
+    out = feature_selection(out)
 
     return out
 
 
-def feature_selection(input: DataFrame, var_quantile: float) -> DataFrame:
+def feature_selection(input: AnnData) -> AnnData:
     """Feature selection by variance.
 
     Args:
         input: Pandas DataFrame containing gene expression values (cells in rows, genes in columns)
-         var_quantile: quantile of highly variable genes to retain for each cell type using the variable gene filter
-
+        
     Results:
-        Pandas DataFrame with selected features
+        Anndata obejct with highly variable genes added as layer
     """
     min_features_for_selection = 1000
-    if len(input.columns) - 2 > min_features_for_selection:
-        # selected_genes = highly_variable_genes(input)
-        pass
+
+    if len(input.var_names) - 2 > min_features_for_selection:
+        highly_variable_genes(input)
+        print('Taking highly variable genes.')
+        
 
     return input
