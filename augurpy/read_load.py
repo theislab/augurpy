@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Union
 
 from anndata import AnnData
 from pandas import DataFrame
@@ -7,7 +7,7 @@ from scanpy.preprocessing import highly_variable_genes
 
 def load(
     input: Union[AnnData, DataFrame],
-    meta: Optional[DataFrame] = None,
+    meta: DataFrame,
     label_col: str = "label_col",
     cell_type_col: str = "cell_type_col",
 ) -> AnnData:
