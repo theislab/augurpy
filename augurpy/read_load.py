@@ -42,7 +42,6 @@ def load(
                 raise Exception("Missing label and / or cell type column.") from None
 
             else:
-                print("Adding cell type and label from metadata.")
                 out = AnnData(X=input, obs={"cell_type": cell_type, "label": label})
 
         else:
@@ -69,6 +68,5 @@ def feature_selection(input: AnnData) -> AnnData:
 
     if len(input.var_names) - 2 > min_features_for_selection:
         highly_variable_genes(input)
-        print("Taking highly variable genes.")
 
     return input
