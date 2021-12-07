@@ -63,7 +63,7 @@ def feature_selection(input: AnnData) -> AnnData:
         input: Pandas DataFrame containing gene expression values (cells in rows, genes in columns)
 
     Results:
-        Anndata obejct with highly variable genes added as layer
+        Anndata object with highly variable genes added as layer
     """
     min_features_for_selection = 1000
 
