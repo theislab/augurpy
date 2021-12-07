@@ -39,7 +39,8 @@ def load(
                 cell_type = meta[cell_type_col]
                 label = meta[label_col]
             except (KeyError, TypeError):
-                raise Exception("Missing label and / or cell type column.")
+                print("Missing label and / or cell type column.")
+                raise
 
             else:
                 out = AnnData(X=input, obs={"cell_type": cell_type, "label": label})
