@@ -34,7 +34,7 @@ def load(
             cell_type = input[cell_type_col]
             label = input[label_col]
         except KeyError:
-            print("No column names matching cell_type_col and label_col. Looking in meta data.")
+            print("[bold yellow]No column names matching cell_type_col and label_col. Looking in meta data.")
             try:
                 cell_type = meta[cell_type_col]
                 label = meta[label_col]
