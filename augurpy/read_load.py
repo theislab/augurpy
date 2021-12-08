@@ -34,15 +34,15 @@ def load(
             cell_type = input[cell_type_col]
             label = input[label_col]
         except KeyError:
-            print("No column names matching cell_type_col and label_col. Looking in meta data.")
+            print("[bold yellow]No column names matching cell_type_col and label_col. Looking in meta data.")
             try:
                 cell_type = meta[cell_type_col]
                 label = meta[label_col]
             except (KeyError, TypeError):
-                raise Exception("Missing label and / or cell type column.") from None
+                print("Missing label and / or cell type column.")
+                raise
 
             else:
-                print("Adding cell type and label from metadata.")
                 out = AnnData(X=input, obs={"cell_type": cell_type, "label": label})
 
         else:
@@ -63,12 +63,11 @@ def feature_selection(input: AnnData) -> AnnData:
         input: Pandas DataFrame containing gene expression values (cells in rows, genes in columns)
 
     Results:
-        Anndata obejct with highly variable genes added as layer
+        Anndata object with highly variable genes added as layer
     """
     min_features_for_selection = 1000
 
     if len(input.var_names) - 2 > min_features_for_selection:
         highly_variable_genes(input)
-        print("Taking highly variable genes.")
 
     return input
