@@ -1,10 +1,13 @@
+from dataclasses import dataclass
 from typing import Dict, Literal, Union
 
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
+from switchlang import switch
 from typing_extensions import TypedDict
 
 
+@dataclass
 class Params(TypedDict, total=False):
     """Type signature for random forest and logistic regression parameters."""
 
@@ -12,6 +15,11 @@ class Params(TypedDict, total=False):
     max_depth: int
     max_features: Union[Literal["auto"], Literal["log2"], Literal["sqrt"], int, float]
     penalty: Union[Literal["l1"], Literal["l2"], Literal["elasticnet"], Literal["none"]]
+
+
+def _raise_exception():
+    """Raise exception for invalid classifier input."""
+    raise Exception("Missing valid input. Choose rf or lr for categorical labels and rf for continous labels.")
 
 
 def create_estimator(
@@ -28,30 +36,28 @@ def create_estimator(
     Returns:
         Estimator object that classifies.
     """
-    if classifier == "rf" and classification:
-        estimator = RandomForestClassifier(
-            n_estimators=params.get("n_estimators", 100),
-            max_depth=params.get("max_depth", None),
-            max_features=params.get("max_features", "auto"),
+    definition = classifier + " categorical: " + str(classification)
+    with switch(definition) as c:
+        c.case(
+            "rf categorical: True",
+            lambda: RandomForestClassifier(
+                n_estimators=params.get("n_estimators", 100),
+                max_depth=params.get("max_depth", None),
+                max_features=params.get("max_features", "auto"),
+            ),
         )
-        print(estimator, " Object created.")
-
-    elif classifier == "rf" and not classification:
-        estimator = RandomForestRegressor(
-            n_estimators=params.get("n_estimators", 100),
-            max_depth=params.get("max_depth", None),
-            max_features=params.get("max_features", "auto"),
+        c.case(
+            "rf categorical: False",
+            lambda: RandomForestRegressor(
+                n_estimators=params.get("n_estimators", 100),
+                max_depth=params.get("max_depth", None),
+                max_features=params.get("max_features", "auto"),
+            ),
         )
-        print(estimator, " Object created.")
+        c.case("lr categorical: True", lambda: LogisticRegression(penalty=params.get("penalty", "l2")))
+        c.default(_raise_exception)
 
-    elif classifier == "lf" and not classification:
-        estimator = LogisticRegression()
-        print(estimator + " Object created.")
-
-    else:
-        raise Exception("Missing valid input.")
-
-    return estimator
+    return c.result
 
 
 def get_feature_importances(
