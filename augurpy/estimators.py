@@ -23,23 +23,38 @@ def _raise_exception():
 
 
 def create_estimator(
-    classifier: Union[Literal["rf"], Literal["lr"]],
+    classifier: Union[
+        Literal["random_forest_classifier"],
+        Literal["random_forest_regressor"],
+        Literal["logistic_regression_classifier"],
+    ],
     params: Params,
-    classification: bool = True,
 ) -> Union[RandomForestClassifier, RandomForestRegressor, LogisticRegression]:
-    """Estimator object.
+    """Creates a model object of the provided type and populates it with desired parameters.
 
     Args:
-        classifier: classifier to use in calculating the area under the curve either random forest or logistic regression
-        params: list of parameters for estimator
+        classifier: classifier to use in calculating the area under the curve. Either random forest classifier or logistic regression for categorical data
+            or random forest regressor for continous data
+        params: parameters used to populate the model object.   n_estimators defines the number of trees in the forest;
+                                                                max_depth specifies the maximal depth of each tree;
+                                                                max_features specifies the maximal number of features considered when looking at best split,
+                                                                    if int then consider max_features for each split
+                                                                    if float consider round(max_features*n_features)
+                                                                    if `auto` then max_features=n_features (default)
+                                                                    if `log2` then max_features=log2(n_features)
+                                                                    if `sqrt` then max_featuers=sqrt(n_features)
+                                                                penalty defines the norm of the penalty used in logistic regression
+                                                                    if `l1` then L1 penalty is added
+                                                                    if `l2` then L2 penalty is added (default)
+                                                                    if `elasticnet` both L1 and L2 penalties are added
+                                                                    if `none` no penalty is added
 
     Returns:
-        Estimator object that classifies.
+        Estimator object.
     """
-    definition = classifier + " categorical: " + str(classification)
-    with switch(definition) as c:
+    with switch(classifier) as c:
         c.case(
-            "rf categorical: True",
+            "random_forest_classifier",
             lambda: RandomForestClassifier(
                 n_estimators=params.get("n_estimators", 100),
                 max_depth=params.get("max_depth", None),
@@ -47,14 +62,14 @@ def create_estimator(
             ),
         )
         c.case(
-            "rf categorical: False",
+            "random_forest_regressor",
             lambda: RandomForestRegressor(
                 n_estimators=params.get("n_estimators", 100),
                 max_depth=params.get("max_depth", None),
                 max_features=params.get("max_features", "auto"),
             ),
         )
-        c.case("lr categorical: True", lambda: LogisticRegression(penalty=params.get("penalty", "l2")))
+        c.case("logistic_regression_classifier", lambda: LogisticRegression(penalty=params.get("penalty", "l2")))
         c.default(_raise_exception)
 
     return c.result
