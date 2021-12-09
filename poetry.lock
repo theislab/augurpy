@@ -1077,6 +1077,14 @@ importlib-metadata = {version = ">=1.7.0", markers = "python_version < \"3.8\""}
 pbr = ">=2.0.0,<2.1.0 || >2.1.0"
 
 [[package]]
+name = "switchlang"
+version = "0.1.0"
+description = "Adds switch blocks to the Python language."
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "threadpoolctl"
 version = "3.0.0"
 description = "threadpoolctl"
@@ -1236,7 +1244,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7,<4.0.0"
-content-hash = "5090a19eb54691f3fb2763bea3946d8eb82dd9d48ee853b29a78401ebcd847f6"
+content-hash = "592404b1c6777bf04ee792c998d2a3d0091e8b4d33d48c362e3a2916549454f6"
 
 [metadata.files]
 alabaster = [
@@ -1930,6 +1938,10 @@ sphinxcontrib-serializinghtml = [
 stevedore = [
     {file = "stevedore-3.5.0-py3-none-any.whl", hash = "sha256:a547de73308fd7e90075bb4d301405bebf705292fa90a90fc3bcf9133f58616c"},
     {file = "stevedore-3.5.0.tar.gz", hash = "sha256:f40253887d8712eaa2bb0ea3830374416736dc8ec0e22f5a65092c1174c44335"},
+]
+switchlang = [
+    {file = "switchlang-0.1.0-py3-none-any.whl", hash = "sha256:bb440c1e865bac15ad4230902c6bd4f4d737c0ec7ac5496c62d2028122af4bea"},
+    {file = "switchlang-0.1.0.tar.gz", hash = "sha256:9d19f7c58358edd08c7919f72bbb01bc0854570af6a39a9d94651a893ec01a82"},
 ]
 threadpoolctl = [
     {file = "threadpoolctl-3.0.0-py3-none-any.whl", hash = "sha256:4fade5b3b48ae4b1c30f200b28f39180371104fccc642e039e0f2435ec8cc211"},
