@@ -4,17 +4,16 @@ from typing import Dict, Literal, Union
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
 from switchlang import switch
-from typing_extensions import TypedDict
 
 
 @dataclass
-class Params(TypedDict, total=False):
+class Params:
     """Type signature for random forest and logistic regression parameters."""
 
-    n_estimators: int
-    max_depth: int
-    max_features: Union[Literal["auto"], Literal["log2"], Literal["sqrt"], int, float]
-    penalty: Union[Literal["l1"], Literal["l2"], Literal["elasticnet"], Literal["none"]]
+    n_estimators: int = 100
+    max_depth: Union[int, None] = None
+    max_features: Union[Literal["auto"], Literal["log2"], Literal["sqrt"], int, float] = "auto"
+    penalty: Union[Literal["l1"], Literal["l2"], Literal["elasticnet"], Literal["none"]] = "l2"
 
 
 def _raise_exception(exception_message: str):
@@ -58,23 +57,21 @@ def create_estimator(
         c.case(
             "random_forest_classifier",
             lambda: RandomForestClassifier(
-                n_estimators=params.get("n_estimators", 100),
-                max_depth=params.get("max_depth", None),
-                max_features=params.get("max_features", "auto"),
+                n_estimators=params.n_estimators,
+                max_depth=params.max_depth,
+                max_features=params.max_features,
             ),
         )
         c.case(
             "random_forest_regressor",
             lambda: RandomForestRegressor(
-                n_estimators=params.get("n_estimators", 100),
-                max_depth=params.get("max_depth", None),
-                max_features=params.get("max_features", "auto"),
+                n_estimators=params.n_estimators,
+                max_depth=params.max_depth,
+                max_features=params.max_features,
             ),
         )
-        c.case("logistic_regression_classifier", lambda: LogisticRegression(penalty=params.get("penalty", "l2")))
-        c.default(_raise_exception)(
-            "Missing valid input. Choose rf or lr for categorical labels and rf for continuous labels."
-        )
+        c.case("logistic_regression_classifier", lambda: LogisticRegression(penalty=params.penalty))
+        c.default(_raise_exception)("Missing valid input.")
 
     return c.result
 
