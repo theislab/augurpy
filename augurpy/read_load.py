@@ -2,8 +2,8 @@ from typing import Optional, Union
 
 from anndata import AnnData
 from pandas import DataFrame
-from scanpy.preprocessing import highly_variable_genes
 from rich import print
+from scanpy.preprocessing import highly_variable_genes
 
 
 def load(
