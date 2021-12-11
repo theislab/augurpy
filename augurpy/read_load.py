@@ -3,6 +3,7 @@ from typing import Optional, Union
 from anndata import AnnData
 from pandas import DataFrame
 from scanpy.preprocessing import highly_variable_genes
+from rich import print
 
 
 def load(
@@ -27,7 +28,7 @@ def load(
     """
     if isinstance(input, AnnData):
         input.obs = input.obs.rename(columns={cell_type_col: "cell_type", label_col: "label"})
-        out = input
+        adata = input
 
     elif isinstance(input, DataFrame):
         if meta is None:
@@ -40,11 +41,11 @@ def load(
         label = input[label_col] if meta is None else meta[label_col]
         cell_type = input[cell_type_col] if meta is None else meta[cell_type_col]
 
-        out = AnnData(X=input, obs={"cell_type": cell_type, "label": label})
+        adata = AnnData(X=input, obs={"cell_type": cell_type, "label": label})
 
-    out = feature_selection(out)
+    adata = feature_selection(adata)
 
-    return out
+    return adata
 
 
 def feature_selection(input: AnnData) -> AnnData:

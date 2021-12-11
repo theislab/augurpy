@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Literal, Union
+from typing import Dict, Literal, Optional, Union
 
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
@@ -11,7 +11,7 @@ class Params:
     """Type signature for random forest and logistic regression parameters."""
 
     n_estimators: int = 100
-    max_depth: Union[int, None] = None
+    max_depth: Optional[int] = None
     max_features: Union[Literal["auto"], Literal["log2"], Literal["sqrt"], int, float] = "auto"
     penalty: Union[Literal["l1"], Literal["l2"], Literal["elasticnet"], Literal["none"]] = "l2"
 
