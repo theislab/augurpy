@@ -1,13 +1,14 @@
-from typing import Union
+from typing import Optional, Union
 
 from anndata import AnnData
 from pandas import DataFrame
+from rich import print
 from scanpy.preprocessing import highly_variable_genes
 
 
 def load(
     input: Union[AnnData, DataFrame],
-    meta: DataFrame,
+    meta: Optional[DataFrame] = None,
     label_col: str = "label_col",
     cell_type_col: str = "cell_type_col",
 ) -> AnnData:
@@ -27,33 +28,24 @@ def load(
     """
     if isinstance(input, AnnData):
         input.obs = input.obs.rename(columns={cell_type_col: "cell_type", label_col: "label"})
-        out = input
+        adata = input
 
     elif isinstance(input, DataFrame):
-        try:
-            cell_type = input[cell_type_col]
-            label = input[label_col]
-        except KeyError:
-            print("[bold yellow]No column names matching cell_type_col and label_col. Looking in meta data.")
+        if meta is None:
             try:
-                cell_type = meta[cell_type_col]
-                label = meta[label_col]
-            except (KeyError, TypeError):
-                print("Missing label and / or cell type column.")
-                raise
+                cell_type = input[cell_type_col]
+                label = input[label_col]
+            except KeyError:
+                print("[bold red]No column names matching cell_type_col and label_col.")
 
-            else:
-                out = AnnData(X=input, obs={"cell_type": cell_type, "label": label})
+        label = input[label_col] if meta is None else meta[label_col]
+        cell_type = input[cell_type_col] if meta is None else meta[cell_type_col]
 
-        else:
-            out = AnnData(X=input, obs={"cell_type": cell_type, "label": label})
+        adata = AnnData(X=input, obs={"cell_type": cell_type, "label": label})
 
-    else:
-        raise Exception("Not valid input.")
+    adata = feature_selection(adata)
 
-    out = feature_selection(out)
-
-    return out
+    return adata
 
 
 def feature_selection(input: AnnData) -> AnnData:
