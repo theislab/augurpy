@@ -21,13 +21,16 @@ def _raise_exception(exception_message: str):
     raise Exception(exception_message)
 
 
+params = Params()
+
+
 def create_estimator(
     classifier: Union[
         Literal["random_forest_classifier"],
         Literal["random_forest_regressor"],
         Literal["logistic_regression_classifier"],
     ],
-    params: Params = Params(),
+    params: Params = params,
 ) -> Union[RandomForestClassifier, RandomForestRegressor, LogisticRegression]:
     """Creates a model object of the provided type and populates it with desired parameters.
 
@@ -54,8 +57,8 @@ def create_estimator(
         Estimator object.
     """
     with switch(classifier) as c:
-        print(c.value)
-        c.case("random_forest_classifier",
+        c.case(
+            "random_forest_classifier",
             lambda: RandomForestClassifier(
                 n_estimators=params.n_estimators,
                 max_depth=params.max_depth,
