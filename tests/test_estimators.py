@@ -1,20 +1,12 @@
-<<<<<<< HEAD
-from sklearn.ensemble import RandomForestRegressor
-
-from augurpy.estimators import create_estimator
-=======
 import pytest
 from sklearn.ensemble import RandomForestRegressor
 
 from augurpy.estimators import Params, create_estimator
->>>>>>> development
 
 
 def test_creation():
     """Test output of create_estimator."""
     assert isinstance(create_estimator("random_forest_regressor"), RandomForestRegressor)
-<<<<<<< HEAD
-=======
 
 
 def test_missing_value():
@@ -33,4 +25,3 @@ def test_params():
 
     with pytest.raises(TypeError):
         create_estimator("random_forest_regressor", Params(unvalid=10))
->>>>>>> development
