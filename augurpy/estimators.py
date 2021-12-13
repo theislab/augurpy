@@ -54,7 +54,7 @@ def create_estimator(
         Estimator object.
     """
     if params is None:
-        params = Params() 
+        params = Params()
     with switch(classifier) as c:
         c.case(
             "random_forest_classifier",
