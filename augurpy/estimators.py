@@ -21,9 +21,6 @@ def _raise_exception(exception_message: str):
     raise Exception(exception_message)
 
 
-params = Params()
-
-
 def create_estimator(
     classifier: Union[
         Literal["random_forest_classifier"],
