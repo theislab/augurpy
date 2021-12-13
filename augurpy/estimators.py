@@ -27,7 +27,7 @@ def create_estimator(
         Literal["random_forest_regressor"],
         Literal["logistic_regression_classifier"],
     ],
-    params: Params,
+    params: Optional[Params] = None,
 ) -> Union[RandomForestClassifier, RandomForestRegressor, LogisticRegression]:
     """Creates a model object of the provided type and populates it with desired parameters.
 
@@ -53,6 +53,8 @@ def create_estimator(
     Returns:
         Estimator object.
     """
+    if params is None:
+        params = Params()
     with switch(classifier) as c:
         c.case(
             "random_forest_classifier",
@@ -71,7 +73,7 @@ def create_estimator(
             ),
         )
         c.case("logistic_regression_classifier", lambda: LogisticRegression(penalty=params.penalty))
-        c.default(_raise_exception)("Missing valid input.")
+        c.default(lambda: _raise_exception("Missing valid input."))
 
     return c.result
 
