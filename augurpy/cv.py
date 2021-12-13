@@ -1,27 +1,60 @@
-from typing import List, Union
+from typing import Dict, Union
 
-from pandas import DataFrame
+from anndata import AnnData
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import make_scorer, r2_score, roc_auc_score
+from sklearn.model_selection import cross_validate
+
+
+def set_scorer(
+    estimator: Union[RandomForestRegressor, RandomForestClassifier, LogisticRegression],
+) -> Dict:
+    """Set scoring fuctions for cross-validation based on estimator.
+
+    Args:
+        estimator: classifier object used to fit the model used to calculate the area under the curve
+
+    Returns:
+        Dict linking name to scorer object.
+    """
+    return (
+        {"auc": make_scorer(roc_auc_score)}
+        if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, LogisticRegression)
+        else {"r2": make_scorer(r2_score)}
+    )
 
 
 def run_cross_validation(
-    subsample: DataFrame,
+    subsample: AnnData,
     estimator: Union[RandomForestRegressor, RandomForestClassifier, LogisticRegression],
-    metrics: List,
-    folds: int,
     subsample_idx: int,
-) -> List:
+    folds: int = 3,
+) -> Dict:
     """Perform cross validation on given subsample.
 
     Args:
         subsample: subsample of gene expression matrix of size subsample_size
         estimator: classifier object to use in calculating the area under the curve
-        metrics: list of metrics to measure in each cv-fold
         folds: number of folds
         subsample_idx: index of subsample
 
     Returns:
-        Pandas DataFrame containing prediction metrics for each fold
+        Dictionary containing prediction metrics and estimator for each fold.
     """
-    pass
+    scorer = set_scorer(estimator)
+    x = subsample.to_df()
+    y = subsample.obs[[col for col in subsample.obs if col.startswith("y")]]
+
+    results = cross_validate(
+        estimator=estimator,
+        X=x,
+        y=y.values.ravel(),
+        scoring=scorer,
+        cv=folds,
+        return_estimator=True,
+    )
+
+    results["subsample_idx"] = subsample_idx
+
+    return results
