@@ -1,5 +1,6 @@
 from typing import Optional, Union
 
+import pandas as pd
 from anndata import AnnData
 from pandas import DataFrame
 from rich import print
@@ -40,10 +41,18 @@ def load(
 
         label = input[label_col] if meta is None else meta[label_col]
         cell_type = input[cell_type_col] if meta is None else meta[cell_type_col]
-
-        adata = AnnData(X=input, obs={"cell_type": cell_type, "label": label})
+        x = input.drop([label_col, cell_type_col], axis=1) if meta is None else input
+        adata = AnnData(X=x, obs=pd.DataFrame({"cell_type": cell_type, "label": label}))
 
     adata = feature_selection(adata)
+
+    if adata.obs["label"].dtype.name == "category":
+        df_dummies = pd.get_dummies(adata.obs["label"], prefix="y", prefix_sep="_", drop_first=True)
+        adata.obs = pd.concat([adata.obs, df_dummies], axis=1)
+    else:
+        y = adata.obs["label"].to_frame()
+        y = y.rename(columns={"label": "y"})
+        adata.obs = pd.concat([adata.obs, y], axis=1)
 
     return adata
 

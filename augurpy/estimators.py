@@ -14,6 +14,7 @@ class Params:
     max_depth: Optional[int] = None
     max_features: Union[Literal["auto"], Literal["log2"], Literal["sqrt"], int, float] = "auto"
     penalty: Union[Literal["l1"], Literal["l2"], Literal["elasticnet"], Literal["none"]] = "l2"
+    random_state: Optional[int] = None
 
 
 def _raise_exception(exception_message: str):
@@ -49,6 +50,7 @@ def create_estimator(
                     if `l2` then L2 penalty is added (default)
                     if `elasticnet` both L1 and L2 penalties are added
                     if `none` no penalty is added
+                random_state sets the random seed for the models
 
     Returns:
         Estimator object.
@@ -62,6 +64,7 @@ def create_estimator(
                 n_estimators=params.n_estimators,
                 max_depth=params.max_depth,
                 max_features=params.max_features,
+                random_state=params.random_state,
             ),
         )
         c.case(
@@ -70,9 +73,13 @@ def create_estimator(
                 n_estimators=params.n_estimators,
                 max_depth=params.max_depth,
                 max_features=params.max_features,
+                random_state=params.random_state,
             ),
         )
-        c.case("logistic_regression_classifier", lambda: LogisticRegression(penalty=params.penalty))
+        c.case(
+            "logistic_regression_classifier",
+            lambda: LogisticRegression(penalty=params.penalty, random_state=params.random_state),
+        )
         c.default(lambda: _raise_exception("Missing valid input."))
 
     return c.result
