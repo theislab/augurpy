@@ -1,4 +1,4 @@
-from typing import Dict, Union
+from typing import Any, Dict, Tuple, Union
 
 from anndata import AnnData
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
@@ -9,19 +9,19 @@ from sklearn.model_selection import cross_validate
 
 def set_scorer(
     estimator: Union[RandomForestRegressor, RandomForestClassifier, LogisticRegression],
-) -> Dict:
+) -> Tuple[Dict[str, Any], str]:
     """Set scoring fuctions for cross-validation based on estimator.
 
     Args:
         estimator: classifier object used to fit the model used to calculate the area under the curve
 
     Returns:
-        Dict linking name to scorer object.
+        Dict linking name to scorer object and string name
     """
     return (
-        {"auc": make_scorer(roc_auc_score)}
+        ({"auc": make_scorer(roc_auc_score)}, "auc")
         if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, LogisticRegression)
-        else {"r2": make_scorer(r2_score)}
+        else ({"r2": make_scorer(r2_score)}, "r2")
     )
 
 
@@ -42,7 +42,7 @@ def run_cross_validation(
     Returns:
         Dictionary containing prediction metrics and estimator for each fold.
     """
-    scorer = set_scorer(estimator)
+    scorer, name = set_scorer(estimator)
     x = subsample.to_df()
     y = subsample.obs[[col for col in subsample.obs if col.startswith("y")]]
 
@@ -56,5 +56,6 @@ def run_cross_validation(
     )
 
     results["subsample_idx"] = subsample_idx
+    results["mean_score"] = results[f"test_{name}"].mean()
 
     return results
