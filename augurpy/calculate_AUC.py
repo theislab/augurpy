@@ -3,6 +3,8 @@ from random import sample
 from typing import Any, Dict, Literal, Union
 
 import scanpy as sc
+import numpy as np
+import pandas as pd
 from anndata import AnnData
 from joblib import Parallel, delayed
 from pandas import DataFrame
@@ -80,6 +82,23 @@ def draw_subsample(
     return subsample
 
 
+def average_metrics(subsample_cv_results: list):
+    """Calculate average scores across multiple cross validation runs with different subsamples.
+    
+    Args: 
+        cross_validation_results: list of all subsample cross validations
+        
+    Returns: 
+        Dict containing the average result for each metric."""
+    metric_names = [m for m in [*subsample_cv_results[0].keys()] if m.startswith('mean')]
+    metric_list={}
+    for d in subsample_cv_results:
+        for m in metric_names:
+            metric_list[m] = metric_list.get(m, [])+[d[m]]
+
+    return {metric: np.mean(values) for metric, values in metric_list.items()}
+
+
 def calculate_auc(
     adata: AnnData,
     classifier: Union[RandomForestClassifier, RandomForestRegressor, LogisticRegression],
@@ -132,4 +151,5 @@ def calculate_auc(
             for i in range(n_subsamples)
         )
 
+    results['summary_metrics'] = pd.DataFrame({celltype: average_metrics(celltype_results) for celltype, celltype_results in results.items()})
     return results
