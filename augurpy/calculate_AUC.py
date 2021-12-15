@@ -75,10 +75,8 @@ def draw_subsample(
 
     # randomly sample features
     features = sample(adata.var_names.tolist(), floor(len(adata.var_names.tolist()) * feature_perc))
-    print(features[:10])
     # randomly sample samples
     subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True)
-    print(subsample.to_df().iloc[:10, :5])
     return subsample
 
 
@@ -121,7 +119,6 @@ def calculate_auc(
     results = {}
     for cell_type in adata.obs["cell_type"].unique():
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
-        print(f"starting {cell_type}")
         results[cell_type] = Parallel(n_jobs=n_threads)(
             delayed(cross_validate_subsample)(
                 input=cell_type_subsample,
