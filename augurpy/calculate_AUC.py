@@ -1,10 +1,10 @@
-from math import floor
+from math import floor, nan
 from random import sample
-from typing import Any, Dict, Literal, Union
+from typing import Any, Dict, Literal, Tuple, Union
 
-import scanpy as sc
 import numpy as np
 import pandas as pd
+import scanpy as sc
 from anndata import AnnData
 from joblib import Parallel, delayed
 from pandas import DataFrame
@@ -82,19 +82,20 @@ def draw_subsample(
     return subsample
 
 
-def average_metrics(subsample_cv_results: list):
-    """Calculate average scores across multiple cross validation runs with different subsamples.
-    
-    Args: 
+def average_metrics(subsample_cv_results: Dict[Any, Any]) -> Dict[Any, Any]:
+    """Calculate average scores across multiple cross validation runs.
+
+    Args:
         cross_validation_results: list of all subsample cross validations
-        
-    Returns: 
-        Dict containing the average result for each metric."""
-    metric_names = [m for m in [*subsample_cv_results[0].keys()] if m.startswith('mean')]
-    metric_list={}
+
+    Returns:
+        Dict containing the average result for each metric.
+    """
+    metric_names = [m for m in [*subsample_cv_results[0].keys()] if m.startswith("mean")]
+    metric_list: Dict[Any, Any] = {}
     for d in subsample_cv_results:
         for m in metric_names:
-            metric_list[m] = metric_list.get(m, [])+[d[m]]
+            metric_list[m] = metric_list.get(m, []) + [d[m]]
 
     return {metric: np.mean(values) for metric, values in metric_list.items()}
 
@@ -110,7 +111,7 @@ def calculate_auc(
     n_threads: int = 4,
     show_progress: bool = True,
     augur_mode: Union[Literal["permute"], Literal["default"], Literal["velocity"]] = "default",
-) -> Dict[Any, Any]:
+) -> Tuple[Any, Dict[str, Dict[Any, Any]]]:
     """Calculates the Area under the Curve using the given classifier.
 
     Args:
@@ -135,7 +136,8 @@ def calculate_auc(
         A dictionary containing the following keys: Dict[X, y, celltypes, parameters, results, feature_importances, AUC]
         and the Anndata object with additional results layer.
     """
-    results = {}
+    results: Dict[Any, Any] = {"summary_metrics": {}}
+    adata.obs["augur_score"] = nan
     for cell_type in adata.obs["cell_type"].unique():
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
         results[cell_type] = Parallel(n_jobs=n_threads)(
@@ -150,6 +152,13 @@ def calculate_auc(
             )
             for i in range(n_subsamples)
         )
+        # summarize scores for cell type
+        results["summary_metrics"][cell_type] = average_metrics(results[cell_type])
 
-    results['summary_metrics'] = pd.DataFrame({celltype: average_metrics(celltype_results) for celltype, celltype_results in results.items()})
-    return results
+        # add scores as observation to anndata
+        mask = adata.obs["cell_type"].str.startswith(cell_type)
+        adata.obs.loc[mask, "augur_score"] = results["summary_metrics"][cell_type]["mean_augur_score"]
+
+    results["summary_metrics"] = pd.DataFrame(results["summary_metrics"])
+
+    return adata, results
