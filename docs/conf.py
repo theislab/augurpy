@@ -27,6 +27,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
+    "sphinx.ext.autosummary",
     "sphinx_click",
     "sphinx_rtd_dark_mode",
 ]
