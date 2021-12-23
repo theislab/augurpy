@@ -1,10 +1,10 @@
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 from anndata import AnnData
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import make_scorer, r2_score, roc_auc_score
-from sklearn.model_selection import cross_validate
+from sklearn.model_selection import KFold, cross_validate
 
 
 def set_scorer(
@@ -30,14 +30,16 @@ def run_cross_validation(
     estimator: Union[RandomForestRegressor, RandomForestClassifier, LogisticRegression],
     subsample_idx: int,
     folds: int = 3,
+    random_state=Optional[int],
 ) -> Dict:
     """Perform cross validation on given subsample.
 
     Args:
         subsample: subsample of gene expression matrix of size subsample_size
         estimator: classifier object to use in calculating the area under the curve
-        folds: number of folds
         subsample_idx: index of subsample
+        folds: number of folds
+        random_state: set random seed
 
     Returns:
         Dictionary containing prediction metrics and estimator for each fold.
@@ -45,13 +47,14 @@ def run_cross_validation(
     scorer = set_scorer(estimator)
     x = subsample.to_df()
     y = subsample.obs[[col for col in subsample.obs if col.startswith("y")]]
+    cv = KFold(n_splits=folds, random_state=random_state, shuffle=True)
 
     results = cross_validate(
         estimator=estimator,
         X=x,
         y=y.values.ravel(),
         scoring=scorer,
-        cv=folds,
+        cv=cv,
         return_estimator=True,
     )
 

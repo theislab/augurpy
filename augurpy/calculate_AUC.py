@@ -1,6 +1,6 @@
 from math import floor, nan
-from random import sample
-from typing import Any, Dict, Literal, Tuple, Union
+from random import random, sample
+from typing import Any, Dict, Literal, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -23,6 +23,7 @@ def cross_validate_subsample(
     folds: int,
     feature_perc: float,
     subsample_idx: int,
+    random_state: Optional[int],
 ) -> DataFrame:
     """Cross validate subsample.
 
@@ -36,19 +37,32 @@ def cross_validate_subsample(
         subsample_size: number of cells to subsample randomly per type from each experimental condition
         folds: number of folds to run cross validation on
         subsample_idx: index of the subsample
+        random_state: set random seed
 
     Returns:
         Results for each cross validation fold.
     """
     subsample = draw_subsample(
-        input, augur_mode, subsample_size, feature_perc=feature_perc, stratified=is_classifier(estimator)
+        input,
+        augur_mode,
+        subsample_size,
+        feature_perc=feature_perc,
+        stratified=is_classifier(estimator),
+        random_state=random_state,
     )
-    results = run_cross_validation(estimator=estimator, subsample=subsample, folds=folds, subsample_idx=subsample_idx)
+    results = run_cross_validation(
+        estimator=estimator, subsample=subsample, folds=folds, subsample_idx=subsample_idx, random_state=random_state
+    )
     return results
 
 
 def draw_subsample(
-    adata: AnnData, augur_mode: str, subsample_size: int, feature_perc: float, stratified: bool
+    adata: AnnData,
+    augur_mode: str,
+    subsample_size: int,
+    feature_perc: float,
+    stratified: bool,
+    random_state: Optional[int],
 ) -> AnnData:
     """Subsample input and select random features.
 
@@ -61,6 +75,7 @@ def draw_subsample(
             permuting the labels
         subsample_size: number of cells to subsample randomly per type from each experimental condition
         stratified: if `True` subsamples are stratified according to condition
+        random_state: set random seed
 
     Returns:
         Subsample of input of size subsample_size
@@ -68,17 +83,19 @@ def draw_subsample(
     if augur_mode == "permut":
         # shuffle labels
         y_columns = [col for col in adata.obs if col.startswith("y")]
-        adata.obs[y_columns] = adata.obs[y_columns].sample(frac=1).reset_index(drop=True)
+        adata.obs[y_columns] = adata.obs[y_columns].sample(frac=1, random_state=random_state).reset_index(drop=True)
 
     if augur_mode == "velocity":
         # no feature selection, assuming this has already happenend in calculating velocity
-        subsample = sc.pp.subsample(adata, n_obs=subsample_size, copy=True)
+        subsample = sc.pp.subsample(adata, n_obs=subsample_size, copy=True, random_state=random_state)
         return subsample
 
     # randomly sample features
+    # random.seed()
+    print(random, type(random))
     features = sample(adata.var_names.tolist(), floor(len(adata.var_names.tolist()) * feature_perc))
     # randomly sample samples
-    subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True)
+    subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True, random_state=random_state)
     return subsample
 
 
@@ -111,11 +128,13 @@ def calculate_auc(
     n_threads: int = 4,
     show_progress: bool = True,
     augur_mode: Union[Literal["permute"], Literal["default"], Literal["velocity"]] = "default",
+    random_state: Optional[int] = None,
 ) -> Tuple[Any, Dict[str, Dict[Any, Any]]]:
     """Calculates the Area under the Curve using the given classifier.
 
     Args:
-        input: Anndata with obs `label` and `cell_type` for label and cell type and dummie variable `y_` columns used as target
+        adata: Anndata with obs `label` and `cell_type` for label and cell type and dummie variable `y_` columns used as target
+        classifier: classifier to use in calculating the area under the curve either random forest or logistic regression
         n_subsamples: number of random subsamples to draw from complete dataset for each cell type
         subsample_size: number of cells to subsample randomly per type from each experimental condition
         folds: number of folds to run cross validation on
@@ -129,12 +148,11 @@ def calculate_auc(
             assuming feature selection has been performed by the RNA velocity procedure to produce the input matrix,
             while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
             permuting the labels
-        classifier: classifier to use in calculating the area under the curve either random forest or logistic regression
-        params: dictionary of parameters for random forest and logistic regression
+        random_state: set random seed for all following processes
 
     Returns:
         A dictionary containing the following keys: Dict[X, y, celltypes, parameters, results, feature_importances, AUC]
-        and the Anndata object with additional results layer.
+        and the Anndata object with additional augur_score obs and uns summary.
     """
     results: Dict[Any, Any] = {"summary_metrics": {}}
     adata.obs["augur_score"] = nan
@@ -149,6 +167,7 @@ def calculate_auc(
                 folds=folds,
                 feature_perc=feature_perc,
                 subsample_idx=i,
+                random_state=random_state,
             )
             for i in range(n_subsamples)
         )
@@ -160,5 +179,6 @@ def calculate_auc(
         adata.obs.loc[mask, "augur_score"] = results["summary_metrics"][cell_type]["mean_augur_score"]
 
     results["summary_metrics"] = pd.DataFrame(results["summary_metrics"])
+    adata.uns["summary_metrics"] = pd.DataFrame(results["summary_metrics"])
 
     return adata, results

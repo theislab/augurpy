@@ -17,6 +17,6 @@ rf_estimator = create_estimator("random_forest_classifier", Params(random_state=
 
 def test_run_cross_validation():
     """Test run cross validation with categorical and classifier."""
-    cv = run_cross_validation(adata, rf_estimator, subsample_idx=1, folds=3)
-    auc = [0.8472222222222222, 0.7205882352941176, 0.6777777777777777]
-    assert any([isclose(x, y, abs_tol=10 ** -15) for x, y in list(zip(cv["test_auc"].tolist(), auc))])
+    cv = run_cross_validation(adata, rf_estimator, subsample_idx=1, folds=3, random_state=42)
+    auc = [0.84249084, 0.89807692, 0.66666667]
+    assert any([isclose(x, y, abs_tol=10 ** -7) for x, y in list(zip(cv["test_auc"].tolist(), auc))])
