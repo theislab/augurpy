@@ -1,6 +1,6 @@
 from math import floor, nan
 from random import random, sample
-from typing import Any, Dict, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -99,7 +99,7 @@ def draw_subsample(
     return subsample
 
 
-def average_metrics(subsample_cv_results: Dict[Any, Any]) -> Dict[Any, Any]:
+def average_metrics(subsample_cv_results: List[Any]) -> Dict[Any, Any]:
     """Calculate average scores across multiple cross validation runs.
 
     Args:
@@ -129,7 +129,7 @@ def calculate_auc(
     show_progress: bool = True,
     augur_mode: Union[Literal["permute"], Literal["default"], Literal["velocity"]] = "default",
     random_state: Optional[int] = None,
-) -> Tuple[Any, Dict[str, Dict[Any, Any]]]:
+) -> Tuple[AnnData, Dict[str, Any]]:
     """Calculates the Area under the Curve using the given classifier.
 
     Args:
