@@ -59,7 +59,7 @@ def run_cross_validation(
     )
 
     results["subsample_idx"] = subsample_idx
-    for s in scorer.keys():
+    for score in scorer.keys():
         results[f"mean_{s}"] = results[f"test_{s}"].mean()
 
     return results
