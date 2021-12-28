@@ -17,3 +17,4 @@ def test_calculate_auc():
     assert results["CellTypeA"][2]["subsample_idx"] == 2
     assert "augur_score" in adata.obs.columns
     assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.433333, 0.666667, 0.666667])
+    assert "feature_importances" in results.keys()

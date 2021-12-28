@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Any, Dict, Optional, Union
 
 from anndata import AnnData
@@ -61,5 +62,19 @@ def run_cross_validation(
     results["subsample_idx"] = subsample_idx
     for score in scorer.keys():
         results[f"mean_{score}"] = results[f"test_{score}"].mean()
+
+    # feature importances
+    feature_importances = defaultdict(list)
+    if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, LogisticRegression):
+        for fold, estimator in list(zip(range(len(results["estimator"])), results["estimator"])):
+            feature_importances["genes"].extend(x.columns.tolist())
+            feature_importances["feature_importances"].extend(estimator.feature_importances_.tolist())
+            feature_importances["subsample_idx"].extend(len(x.columns) * [subsample_idx])
+            feature_importances["fold"].extend(len(x.columns) * [fold])
+
+    if isinstance(estimator, LogisticRegression):
+        pass
+
+    results["feature_importances"] = feature_importances
 
     return results

@@ -1,4 +1,5 @@
 import random
+from collections import defaultdict
 from math import floor, nan
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
@@ -153,7 +154,7 @@ def calculate_auc(
         A dictionary containing the following keys: Dict[X, y, celltypes, parameters, results, feature_importances, AUC]
         and the Anndata object with additional augur_score obs and uns summary.
     """
-    results: Dict[Any, Any] = {"summary_metrics": {}}
+    results: Dict[Any, Any] = {"summary_metrics": {}, "feature_importances": defaultdict(list)}
     adata.obs["augur_score"] = nan
     for cell_type in adata.obs["cell_type"].unique():
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
@@ -177,7 +178,19 @@ def calculate_auc(
         mask = adata.obs["cell_type"].str.startswith(cell_type)
         adata.obs.loc[mask, "augur_score"] = results["summary_metrics"][cell_type]["mean_augur_score"]
 
+        # concatenate feature importances for each subsample cv
+        subsample_feature_importances_dicts = [cv["feature_importances"] for cv in results[cell_type]]
+
+        for d in subsample_feature_importances_dicts:
+            for key, value in d.items():
+                results["feature_importances"][key].extend(value)
+        results["feature_importances"]["CellType"].extend(
+            [cell_type]
+            * (len(results["feature_importances"]["genes"]) - len(results["feature_importances"]["CellType"]))
+        )
+
     results["summary_metrics"] = pd.DataFrame(results["summary_metrics"])
+    results["feature_importances"] = pd.DataFrame(results["feature_importances"])
     adata.uns["summary_metrics"] = pd.DataFrame(results["summary_metrics"])
 
     return adata, results

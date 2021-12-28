@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
@@ -83,17 +83,3 @@ def create_estimator(
         c.default(lambda: _raise_exception("Missing valid input."))
 
     return c.result
-
-
-def get_feature_importances(
-    estimator: Union[RandomForestClassifier, RandomForestRegressor, LogisticRegression]
-) -> Dict:
-    """Get feature importances with respect to this estimator.
-
-    Args:
-        estimator: fitted classifier used to calculate feature importances
-
-    Returns:
-        Dictionary containing the importance of each feature
-    """
-    pass
