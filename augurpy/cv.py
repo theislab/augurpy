@@ -39,7 +39,7 @@ def run_cross_validation(
         estimator: classifier object to use in calculating the area under the curve
         subsample_idx: index of subsample
         folds: number of folds
-        random_state: set random seed
+        random_state: set random fold seed
 
     Returns:
         Dictionary containing prediction metrics and estimator for each fold.
@@ -47,14 +47,14 @@ def run_cross_validation(
     scorer = set_scorer(estimator)
     x = subsample.to_df()
     y = subsample.obs[[col for col in subsample.obs if col.startswith("y")]]
-    cv = KFold(n_splits=folds, random_state=random_state, shuffle=True)
+    folds = KFold(n_splits=folds, random_state=random_state, shuffle=True)
 
     results = cross_validate(
         estimator=estimator,
         X=x,
         y=y.values.ravel(),
         scoring=scorer,
-        cv=cv,
+        cv=folds,
         return_estimator=True,
     )
 

@@ -50,7 +50,7 @@ def create_estimator(
                     if `l2` then L2 penalty is added (default)
                     if `elasticnet` both L1 and L2 penalties are added
                     if `none` no penalty is added
-                random_state sets the random seed for the models
+                random_state sets random model seed
 
     Returns:
         Estimator object.
