@@ -1,8 +1,7 @@
 from collections import defaultdict
 from typing import Any, Dict, Optional, Union
-from pandas import DataFrame
-import numpy as np
 
+import numpy as np
 from anndata import AnnData
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
@@ -10,28 +9,28 @@ from sklearn.metrics import make_scorer, r2_score, roc_auc_score
 from sklearn.model_selection import KFold, cross_validate
 
 
-def ccc_score(y_true: DataFrame, y_pred: DataFrame) -> float:
-    '''Implementation of Lin's Concordance correlation coefficient, based on https://gitlab.com/-/snippets/1730605.
-    
-    Args: 
-        y_true: array-like of shape (n_samples), ground truth (correct) target values 
+def ccc_score(y_true, y_pred) -> float:
+    """Implementation of Lin's Concordance correlation coefficient, based on https://gitlab.com/-/snippets/1730605.
+
+    Args:
+        y_true: array-like of shape (n_samples), ground truth (correct) target values
         y_pred: array-like of shape (n_samples), estimated target values
-        
-    Returns: 
-        Concordance correlation coefficient. 
-    '''
+
+    Returns:
+        Concordance correlation coefficient.
+    """
     # covariance between y_true and y_pred
-    s_xy = np.cov([y_true, y_pred])[0,1]
+    s_xy = np.cov([y_true, y_pred])[0, 1]
     # means
     x_m = np.mean(y_true)
     y_m = np.mean(y_pred)
     # variances
     s_x_sq = np.var(y_true)
     s_y_sq = np.var(y_pred)
-    
+
     # condordance correlation coefficient
-    ccc = (2.0*s_xy) / (s_x_sq + s_y_sq + (x_m-y_m)**2)
-    
+    ccc = (2.0 * s_xy) / (s_x_sq + s_y_sq + (x_m - y_m) ** 2)
+
     return ccc
 
 
@@ -49,7 +48,7 @@ def set_scorer(
     return (
         {"augur_score": make_scorer(roc_auc_score), "auc": make_scorer(roc_auc_score)}
         if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, LogisticRegression)
-        else {"augur_score": make_scorer(ccc_score), "r2": make_scorer(r2_score), 'ccc': make_scorer(ccc_score)}
+        else {"augur_score": make_scorer(ccc_score), "r2": make_scorer(r2_score), "ccc": make_scorer(ccc_score)}
     )
 
 
