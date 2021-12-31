@@ -9,6 +9,7 @@ import scanpy as sc
 from anndata import AnnData
 from joblib import Parallel, delayed
 from pandas import DataFrame
+from rich.progress import track
 from sklearn.base import is_classifier
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
@@ -156,7 +157,7 @@ def calculate_auc(
     """
     results: Dict[Any, Any] = {"summary_metrics": {}, "feature_importances": defaultdict(list)}
     adata.obs["augur_score"] = nan
-    for cell_type in adata.obs["cell_type"].unique():
+    for cell_type in track(adata.obs["cell_type"].unique(), description="Processing data."):
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
         results[cell_type] = Parallel(n_jobs=n_threads)(
             delayed(cross_validate_subsample)(
