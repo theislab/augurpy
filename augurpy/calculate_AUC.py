@@ -1,45 +1,146 @@
-from typing import Dict, List, Optional, Tuple, Union
+import random
+from collections import defaultdict
+from math import floor, nan
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
+import numpy as np
+import pandas as pd
+import scanpy as sc
 from anndata import AnnData
+from joblib import Parallel, delayed
 from pandas import DataFrame
+from rich.progress import track
+from sklearn.base import is_classifier
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
 
+from augurpy.cv import run_cross_validation
+
+
+def cross_validate_subsample(
+    adata: AnnData,
+    estimator: Union[RandomForestRegressor, RandomForestClassifier, LogisticRegression],
+    augur_mode: str,
+    subsample_size: int,
+    folds: int,
+    feature_perc: float,
+    subsample_idx: int,
+    random_state: Optional[int],
+) -> DataFrame:
+    """Cross validate subsample anndata object.
+
+    Args:
+        adata: Anndata with obs `label` and `cell_type` for label and cell type and dummie variable `y_` columns used as target
+        estimator: classifier to use in calculating augur metrics, either random forest or logistic regression
+        augur_mode: one of default, velocity or permute. Setting augur_mode = "velocity" disables feature selection,
+            assuming feature selection has been performed by the RNA velocity procedure to produce the input matrix,
+            while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
+            permuting the labels
+        subsample_size: number of cells to subsample randomly per type from each experimental condition
+        folds: number of folds to run cross validation on
+        subsample_idx: index of the subsample
+        random_state: set numpy random seed, sampling seed and fold seed
+
+    Returns:
+        Results for each cross validation fold.
+    """
+    subsample = draw_subsample(
+        adata,
+        augur_mode,
+        subsample_size,
+        feature_perc=feature_perc,
+        stratified=is_classifier(estimator),
+        random_state=random_state,
+    )
+    results = run_cross_validation(
+        estimator=estimator, subsample=subsample, folds=folds, subsample_idx=subsample_idx, random_state=random_state
+    )
+    return results
+
+
+def draw_subsample(
+    adata: AnnData,
+    augur_mode: str,
+    subsample_size: int,
+    feature_perc: float,
+    stratified: bool,
+    random_state: Optional[int],
+) -> AnnData:
+    """Subsample and select random features of anndata object.
+
+    Args:
+        adata: Anndata with obs `label` and `cell_type` for label and cell type and dummie variable `y_` columns used as target
+        augur_mode: one of default, velocity or permute. Setting augur_mode = "velocity" disables feature selection,
+            assuming feature selection has been performed by the RNA velocity procedure to produce the input matrix,
+            while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
+            permuting the labels
+        subsample_size: number of cells to subsample randomly per type from each experimental condition
+        stratified: if `True` subsamples are stratified according to condition
+        random_state: set numpy random seed and sampling seed
+
+    Returns:
+        Subsample of anndata object of size subsample_size
+    """
+    if augur_mode == "permut":
+        # shuffle labels
+        y_columns = [col for col in adata.obs if col.startswith("y")]
+        adata.obs[y_columns] = adata.obs[y_columns].sample(frac=1, random_state=random_state).reset_index(drop=True)
+
+    if augur_mode == "velocity":
+        # no feature selection, assuming this has already happenend in calculating velocity
+        subsample = sc.pp.subsample(adata, n_obs=subsample_size, copy=True, random_state=random_state)
+        return subsample
+
+    # randomly sample features
+    if random_state is not None:
+        random.seed(random_state)
+    features = random.sample(adata.var_names.tolist(), floor(len(adata.var_names.tolist()) * feature_perc))
+    # randomly sample samples
+    subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True, random_state=random_state)
+    return subsample
+
+
+def average_metrics(cell_cv_results: List[Any]) -> Dict[Any, Any]:
+    """Calculate average metric of cross validation runs done of one cell type.
+
+    Args:
+        cell_cv_results: list of all cross validation runs of one cell type
+
+    Returns:
+        Dict containing the average result for each metric of one cell type
+    """
+    metric_names = [metric for metric in [*cell_cv_results[0].keys()] if metric.startswith("mean")]
+    metric_list: Dict[Any, Any] = {}
+    for subsample_cv_result in cell_cv_results:
+        for metric in metric_names:
+            metric_list[metric] = metric_list.get(metric, []) + [subsample_cv_result[metric]]
+
+    return {metric: np.mean(values) for metric, values in metric_list.items()}
+
 
 def calculate_auc(
-    input: Union[AnnData, DataFrame],
-    meta: Optional[DataFrame] = None,
-    label_col: str = "label",
-    cell_type_col: str = "cell_type",
+    adata: AnnData,
+    classifier: Union[RandomForestClassifier, RandomForestRegressor, LogisticRegression],
     n_subsamples: int = 50,
     subsample_size: int = 20,
     folds: int = 3,
     min_cells: int = None,
-    var_quantile: float = 0.5,
     feature_perc: float = 0.5,
     n_threads: int = 4,
     show_progress: bool = True,
-    augur_mode: str = "default",
-    classifier: str = "rf",
-    rf_params: Dict = None,
-    lr_params: List = None,
-) -> Tuple[Union[Dict, AnnData]]:
+    augur_mode: Union[Literal["permute"], Literal["default"], Literal["velocity"]] = "default",
+    random_state: Optional[int] = None,
+) -> Tuple[AnnData, Dict[str, Any]]:
     """Calculates the Area under the Curve using the given classifier.
 
     Args:
-        input: Anndata or matrix containing gene expression values (cells in rows, genes in columns) and optionally meta
-            data about each cell.
-        meta: Optional Pandas DataFrame containing meta data about each cell.
-        label_col: column of the meta data or the Anndata or matrix containing the condition labels for each cell
-            in the cell-by-gene expression matrix
-        cell_type_col: column of the meta DataFrame or the Anndata or matrix containing the cell type labels for each
-            cell in the cell-by-gene expression matrix
+        adata: Anndata with obs `label` and `cell_type` for label and cell type and dummie variable `y_` columns used as target
+        classifier: classifier to use in calculating augur metrics, either random forest or logistic regression
         n_subsamples: number of random subsamples to draw from complete dataset for each cell type
         subsample_size: number of cells to subsample randomly per type from each experimental condition
         folds: number of folds to run cross validation on
         min_cells: minimum number of cells for a particular cell type in each condition in order to retain that type for
             analysis (depricated..)
-        var_quantile: quantile of highly variable genes to retain for each cell type using the variable gene filter
         feature_perc: proportion of genes that are randomly selected as features for input to the classifier in each
             subsample using the random gene filter
         n_threads: number of threads to use for parallelization
@@ -48,62 +149,49 @@ def calculate_auc(
             assuming feature selection has been performed by the RNA velocity procedure to produce the input matrix,
             while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
             permuting the labels
-        classifier: classifier to use in calculating the area under the curve either random forest or logistic regression
-        rf_params: list of parameters for random forest
-        lr_params: list of parameters for logistic regression
+        random_state: set numpy random seed, sampling seed and fold seed
 
     Returns:
         A dictionary containing the following keys: Dict[X, y, celltypes, parameters, results, feature_importances, AUC]
-        and the Anndata object with additional results layer.
+        and the Anndata object with additional augur_score obs and uns summary.
     """
-    pass
+    results: Dict[Any, Any] = {"summary_metrics": {}, "feature_importances": defaultdict(list)}
+    adata.obs["augur_score"] = nan
+    for cell_type in track(adata.obs["cell_type"].unique(), description="Processing data."):
+        cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
+        results[cell_type] = Parallel(n_jobs=n_threads)(
+            delayed(cross_validate_subsample)(
+                adata=cell_type_subsample,
+                estimator=classifier,
+                augur_mode=augur_mode,
+                subsample_size=subsample_size,
+                folds=folds,
+                feature_perc=feature_perc,
+                subsample_idx=i,
+                random_state=random_state,
+            )
+            for i in range(n_subsamples)
+        )
+        # summarize scores for cell type
+        results["summary_metrics"][cell_type] = average_metrics(results[cell_type])
 
+        # add scores as observation to anndata
+        mask = adata.obs["cell_type"].str.startswith(cell_type)
+        adata.obs.loc[mask, "augur_score"] = results["summary_metrics"][cell_type]["mean_augur_score"]
 
-def draw_subsample(input: DataFrame, augur_mode: str, subsample_size: int, stratified: bool) -> DataFrame:
-    """Subsample input.
+        # concatenate feature importances for each subsample cv
+        subsample_feature_importances_dicts = [cv["feature_importances"] for cv in results[cell_type]]
 
-    Args:
-        input: Pandas DataFrame containing gene expression values (cells in rows, genes in columns) along with cell type and
-            condition
-        augur_mode: one of default, velocity or permute. Setting augur_mode = "velocity" disables feature selection,
-            assuming feature selection has been performed by the RNA velocity procedure to produce the input matrix,
-            while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
-            permuting the labels
-        subsample_size: number of cells to subsample randomly per type from each experimental condition
-        stratified: if `True` subsamples are stratified according to condition
+        for d in subsample_feature_importances_dicts:
+            for key, value in d.items():
+                results["feature_importances"][key].extend(value)
+        results["feature_importances"]["CellType"].extend(
+            [cell_type]
+            * (len(results["feature_importances"]["genes"]) - len(results["feature_importances"]["CellType"]))
+        )
 
-    Returns:
-        Subsample of input of size subsample_size
-    """
-    pass
+    results["summary_metrics"] = pd.DataFrame(results["summary_metrics"])
+    results["feature_importances"] = pd.DataFrame(results["feature_importances"])
+    adata.uns["summary_metrics"] = pd.DataFrame(results["summary_metrics"])
 
-
-def subsample_cross_validate(
-    input: DataFrame,
-    augur_mode: str,
-    subsample_size: int,
-    stratified: bool,
-    estimator: Union[RandomForestRegressor, RandomForestClassifier, LogisticRegression],
-    metrics: list,
-    folds: int,
-    subsample_idx: int,
-) -> DataFrame:
-    """Cross validate subsample.
-
-    Args:
-        input: Pandas DataFrame
-        augur_mode: one of default, velocity or permute. Setting augur_mode = "velocity" disables feature selection,
-            assuming feature selection has been performed by the RNA velocity procedure to produce the input matrix,
-            while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
-            permuting the labels
-        subsample_size: number of cells to subsample randomly per type from each experimental condition
-        stratified: if the sampling for cross validation is stratified or not
-        estimator: classifier
-        metrics: metrics to evaluate the cross validation
-        folds: number of folds to run cross validation on
-        subsample_idx: index of the subsample
-
-    Returns:
-        Results for each cross validation fold.
-    """
-    pass
+    return adata, results

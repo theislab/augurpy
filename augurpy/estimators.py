@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
@@ -50,7 +50,7 @@ def create_estimator(
                     if `l2` then L2 penalty is added (default)
                     if `elasticnet` both L1 and L2 penalties are added
                     if `none` no penalty is added
-                random_state sets the random seed for the models
+                random_state sets random model seed
 
     Returns:
         Estimator object.
@@ -83,17 +83,3 @@ def create_estimator(
         c.default(lambda: _raise_exception("Missing valid input."))
 
     return c.result
-
-
-def get_feature_importances(
-    estimator: Union[RandomForestClassifier, RandomForestRegressor, LogisticRegression]
-) -> Dict:
-    """Get feature importances with respect to this estimator.
-
-    Args:
-        estimator: fitted classifier used to calculate feature importances
-
-    Returns:
-        Dictionary containing the importance of each feature
-    """
-    pass
