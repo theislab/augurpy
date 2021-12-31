@@ -12,11 +12,24 @@ adata = load(adata)
 # subsample 100 obs
 sc.pp.subsample(adata, n_obs=100, random_state=42)
 
-rf_estimator = create_estimator("random_forest_classifier", Params(random_state=42))
+rf_classifier = create_estimator("random_forest_classifier", Params(random_state=42))
+lr_classifier = create_estimator('logistic_regression_classifier')
+rf_regressor = create_estimator("random_forest_regressor", Params(random_state=42))
 
 
-def test_run_cross_validation():
-    """Test run cross validation with categorical and classifier."""
-    cv = run_cross_validation(adata, rf_estimator, subsample_idx=1, folds=3, random_state=42)
-    auc = [0.84249084, 0.89807692, 0.66666667]
-    assert any([isclose(x, y, abs_tol=10 ** -7) for x, y in list(zip(cv["test_auc"].tolist(), auc))])
+def test_classifier():
+    """Test run cross validation with classifier."""
+    cv = run_cross_validation(adata, rf_classifier, subsample_idx=1, folds=3, random_state=42)
+    auc = 0.802411
+    assert any([isclose(cv['mean_auc'], auc, abs_tol=10 ** -5)])
+
+    cv = run_cross_validation(adata, lr_classifier, subsample_idx=1, folds=3, random_state=42)
+    auc = 0.869871
+    assert any([isclose(cv['mean_auc'], auc, abs_tol=10 ** -5)])
+
+def test_regressor():
+    """Test run cross validation with regressor."""
+    cv = run_cross_validation(adata, rf_regressor, subsample_idx=1, folds=3, random_state=42)
+    ccc = 0.433445
+    r2 = 0.274051
+    assert any([isclose(cv['mean_ccc'], ccc, abs_tol=10 ** -5), isclose(cv['mean_r2'], r2, abs_tol=10 ** -5)])
