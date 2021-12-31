@@ -99,20 +99,20 @@ def draw_subsample(
     return subsample
 
 
-def average_metrics(subsample_cv_results: List[Any]) -> Dict[Any, Any]:
-    """Calculate average metric of cross validation runs.
+def average_metrics(cell_cv_results: List[Any]) -> Dict[Any, Any]:
+    """Calculate average metric of cross validation runs done of one cell type.
 
     Args:
-        cross_validation_results: list of all subsample cross validations
+        cell_cv_results: list of all cross validation runs of one cell type
 
     Returns:
-        Dict containing the average result for each metric.
+        Dict containing the average result for each metric of one cell type
     """
-    metric_names = [metric for metric in [*subsample_cv_results[0].keys()] if metric.startswith("mean")]
+    metric_names = [metric for metric in [*cell_cv_results[0].keys()] if metric.startswith("mean")]
     metric_list: Dict[Any, Any] = {}
-    for d in subsample_cv_results:
+    for subsample_cv_result in cell_cv_results:
         for metric in metric_names:
-            metric_list[metric] = metric_list.get(metric, []) + [d[metric]]
+            metric_list[metric] = metric_list.get(metric, []) + [subsample_cv_result[metric]]
 
     return {metric: np.mean(values) for metric, values in metric_list.items()}
 
