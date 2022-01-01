@@ -1,3 +1,4 @@
+"""Cross validate subsample to return results object containing metric scores and feature importances."""
 from collections import defaultdict
 from typing import Any, Dict, Optional, Union
 

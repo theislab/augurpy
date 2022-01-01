@@ -3,7 +3,7 @@ from math import isclose
 import scanpy as sc
 
 from augurpy.cv import run_cross_validation
-from augurpy.estimators import Params, create_estimator
+from augurpy.estimator import Params, create_estimator
 from augurpy.read_load import load
 
 adata = sc.read_h5ad("tests/sc_sim.h5ad")

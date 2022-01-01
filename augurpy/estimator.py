@@ -1,3 +1,4 @@
+"""Creates model object of desired type and populates it with desired parameters."""
 from dataclasses import dataclass
 from typing import Literal, Optional, Union
 

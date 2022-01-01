@@ -1,7 +1,7 @@
 ﻿augurpy.calculate\_AUC
 ======================
 
-.. automodule:: augurpy.calculate_AUC
+.. automodule:: augurpy.evaluate
 
 
 

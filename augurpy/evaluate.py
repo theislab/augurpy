@@ -1,3 +1,4 @@
+"""Calculates augur score for given dataset and estimator."""
 import random
 from collections import defaultdict
 from math import floor, nan

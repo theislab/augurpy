@@ -1,8 +1,8 @@
 import numpy as np
 import scanpy as sc
 
-from augurpy.calculate_AUC import calculate_auc
-from augurpy.estimators import Params, create_estimator
+from augurpy.estimator import Params, create_estimator
+from augurpy.evaluate import calculate_auc
 from augurpy.read_load import load
 
 sc_sim_adata = sc.read_h5ad("tests/sc_sim.h5ad")

@@ -1,7 +1,7 @@
 ﻿augurpy.estimators
 ==================
 
-.. automodule:: augurpy.estimators
+.. automodule:: augurpy.estimator
 
 
 

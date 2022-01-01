@@ -1,3 +1,4 @@
+"""Read and load input data into anndata object."""
 from typing import Optional, Union
 
 import pandas as pd
@@ -25,7 +26,8 @@ def load(
             cell in the cell-by-gene expression matrix
 
     Returns:
-        Anndata object containing gene expression values (cells in rows, genes in columns) and cell type, label as obs
+        Anndata object containing gene expression values (cells in rows, genes in columns) and cell type, label and y
+        dummie variables as obs
     """
     if isinstance(input, AnnData):
         input.obs = input.obs.rename(columns={cell_type_col: "cell_type", label_col: "label"})
@@ -57,18 +59,18 @@ def load(
     return adata
 
 
-def feature_selection(input: AnnData) -> AnnData:
-    """Feature selection by variance.
+def feature_selection(adata: AnnData) -> AnnData:
+    """Feature selection by variance using scanpy highly variable genes.
 
     Args:
-        input: Pandas DataFrame containing gene expression values (cells in rows, genes in columns)
+        adata: Anndata object containing gene expression values (cells in rows, genes in columns)
 
     Results:
         Anndata object with highly variable genes added as layer
     """
     min_features_for_selection = 1000
 
-    if len(input.var_names) - 2 > min_features_for_selection:
-        highly_variable_genes(input)
+    if len(adata.var_names) - 2 > min_features_for_selection:
+        highly_variable_genes(adata)
 
-    return input
+    return adata
