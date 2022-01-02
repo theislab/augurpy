@@ -1,7 +1,5 @@
-<<<<<<< HEAD
-=======
 import os
->>>>>>> f0e9d4c (add pyupgrade)
+
 from math import isclose
 
 import numpy as np
