@@ -1,6 +1,7 @@
+from math import isclose
+
 import numpy as np
 import scanpy as sc
-from math import isclose
 
 from augurpy.estimator import Params, create_estimator
 from augurpy.evaluate import calculate_auc, run_cross_validation
@@ -13,10 +14,8 @@ estimator = create_estimator("random_forest_classifier", Params(random_state=42)
 
 def test_calculate_auc():
     """Tests auc calculation."""
-    adata, results = calculate_auc(
-        sc_sim_adata, n_threads=4, n_subsamples=3, classifier=estimator, random_state=42
-    )
-    print(results['summary_metrics'])
+    adata, results = calculate_auc(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=estimator, random_state=42)
+    print(results["summary_metrics"])
     assert results["CellTypeA"][2]["subsample_idx"] == 2
     assert "augur_score" in adata.obs.columns
     assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.433333, 0.666667, 0.666667])
@@ -49,4 +48,3 @@ def test_regressor():
     ccc = 0.433445
     r2 = 0.274051
     assert any([isclose(cv["mean_ccc"], ccc, abs_tol=10 ** -5), isclose(cv["mean_r2"], r2, abs_tol=10 ** -5)])
-
