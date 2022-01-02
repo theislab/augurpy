@@ -1,5 +1,5 @@
 """Read and load input data into anndata object."""
-from typing import Optional, Union
+from __future__ import annotations
 
 import pandas as pd
 from anndata import AnnData
@@ -9,8 +9,8 @@ from scanpy.preprocessing import highly_variable_genes
 
 
 def load(
-    input: Union[AnnData, DataFrame],
-    meta: Optional[DataFrame] = None,
+    input: AnnData | DataFrame,
+    meta: DataFrame | None = None,
     label_col: str = "label_col",
     cell_type_col: str = "cell_type_col",
 ) -> AnnData:
@@ -36,8 +36,8 @@ def load(
     elif isinstance(input, DataFrame):
         if meta is None:
             try:
-                cell_type = input[cell_type_col]
-                label = input[label_col]
+                _ = input[cell_type_col]
+                _ = input[label_col]
             except KeyError:
                 print("[bold red]No column names matching cell_type_col and label_col.")
 

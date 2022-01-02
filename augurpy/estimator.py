@@ -1,6 +1,8 @@
 """Creates model object of desired type and populates it with desired parameters."""
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Literal, Optional, Union
+from typing import Literal
 
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
@@ -12,10 +14,10 @@ class Params:
     """Type signature for random forest and logistic regression parameters."""
 
     n_estimators: int = 100
-    max_depth: Optional[int] = None
-    max_features: Union[Literal["auto"], Literal["log2"], Literal["sqrt"], int, float] = "auto"
-    penalty: Union[Literal["l1"], Literal["l2"], Literal["elasticnet"], Literal["none"]] = "l2"
-    random_state: Optional[int] = None
+    max_depth: int | None = None
+    max_features: Literal["auto"] | Literal["log2"] | Literal["sqrt"] | int | float = "auto"
+    penalty: Literal["l1"] | Literal["l2"] | Literal["elasticnet"] | Literal["none"] = "l2"
+    random_state: int | None = None
 
 
 def _raise_exception(exception_message: str):
@@ -24,13 +26,13 @@ def _raise_exception(exception_message: str):
 
 
 def create_estimator(
-    classifier: Union[
-        Literal["random_forest_classifier"],
-        Literal["random_forest_regressor"],
-        Literal["logistic_regression_classifier"],
-    ],
-    params: Optional[Params] = None,
-) -> Union[RandomForestClassifier, RandomForestRegressor, LogisticRegression]:
+    classifier: (
+        Literal["random_forest_classifier"]
+        | Literal["random_forest_regressor"]
+        | Literal["logistic_regression_classifier"]
+    ),
+    params: Params | None = None,
+) -> RandomForestClassifier | RandomForestRegressor | LogisticRegression:
     """Creates a model object of the provided type and populates it with desired parameters.
 
     Args:

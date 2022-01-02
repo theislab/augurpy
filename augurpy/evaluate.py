@@ -1,8 +1,10 @@
 """Calculates augur score for given dataset and estimator."""
+from __future__ import annotations
+
 import random
 from collections import defaultdict
 from math import floor, nan
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Literal, Optional
 
 import numpy as np
 import pandas as pd
@@ -20,13 +22,13 @@ from sklearn.model_selection import KFold, cross_validate
 
 def cross_validate_subsample(
     adata: AnnData,
-    estimator: Union[RandomForestRegressor, RandomForestClassifier, LogisticRegression],
+    estimator: RandomForestRegressor | RandomForestClassifier | LogisticRegression,
     augur_mode: str,
     subsample_size: int,
     folds: int,
     feature_perc: float,
     subsample_idx: int,
-    random_state: Optional[int],
+    random_state: int | None,
 ) -> DataFrame:
     """Cross validate subsample anndata object.
 
@@ -65,7 +67,7 @@ def draw_subsample(
     subsample_size: int,
     feature_perc: float,
     stratified: bool,
-    random_state: Optional[int],
+    random_state: int | None,
 ) -> AnnData:
     """Subsample and select random features of anndata object.
 
@@ -127,8 +129,8 @@ def ccc_score(y_true, y_pred) -> float:
 
 
 def set_scorer(
-    estimator: Union[RandomForestRegressor, RandomForestClassifier, LogisticRegression],
-) -> Dict[str, Any]:
+    estimator: RandomForestRegressor | RandomForestClassifier | LogisticRegression,
+) -> dict[str, Any]:
     """Set scoring fuctions for cross-validation based on estimator.
 
     Args:
@@ -146,11 +148,11 @@ def set_scorer(
 
 def run_cross_validation(
     subsample: AnnData,
-    estimator: Union[RandomForestRegressor, RandomForestClassifier, LogisticRegression],
+    estimator: RandomForestRegressor | RandomForestClassifier | LogisticRegression,
     subsample_idx: int,
     folds: int = 3,
     random_state=Optional[int],
-) -> Dict:
+) -> dict:
     """Perform cross validation on given subsample.
 
     Args:
@@ -198,7 +200,7 @@ def run_cross_validation(
     return results
 
 
-def average_metrics(cell_cv_results: List[Any]) -> Dict[Any, Any]:
+def average_metrics(cell_cv_results: list[Any]) -> dict[Any, Any]:
     """Calculate average metric of cross validation runs done of one cell type.
 
     Args:
@@ -208,7 +210,7 @@ def average_metrics(cell_cv_results: List[Any]) -> Dict[Any, Any]:
         Dict containing the average result for each metric of one cell type
     """
     metric_names = [metric for metric in [*cell_cv_results[0].keys()] if metric.startswith("mean")]
-    metric_list: Dict[Any, Any] = {}
+    metric_list: dict[Any, Any] = {}
     for subsample_cv_result in cell_cv_results:
         for metric in metric_names:
             metric_list[metric] = metric_list.get(metric, []) + [subsample_cv_result[metric]]
@@ -218,7 +220,7 @@ def average_metrics(cell_cv_results: List[Any]) -> Dict[Any, Any]:
 
 def calculate_auc(
     adata: AnnData,
-    classifier: Union[RandomForestClassifier, RandomForestRegressor, LogisticRegression],
+    classifier: RandomForestClassifier | RandomForestRegressor | LogisticRegression,
     n_subsamples: int = 50,
     subsample_size: int = 20,
     folds: int = 3,
@@ -226,9 +228,9 @@ def calculate_auc(
     feature_perc: float = 0.5,
     n_threads: int = 4,
     show_progress: bool = True,
-    augur_mode: Union[Literal["permute"], Literal["default"], Literal["velocity"]] = "default",
-    random_state: Optional[int] = None,
-) -> Tuple[AnnData, Dict[str, Any]]:
+    augur_mode: Literal["permute"] | Literal["default"] | Literal["velocity"] = "default",
+    random_state: int | None = None,
+) -> tuple[AnnData, dict[str, Any]]:
     """Calculates the Area under the Curve using the given classifier.
 
     Args:
@@ -253,7 +255,7 @@ def calculate_auc(
         A dictionary containing the following keys: Dict[X, y, celltypes, parameters, results, feature_importances, AUC]
         and the Anndata object with additional augur_score obs and uns summary.
     """
-    results: Dict[Any, Any] = {"summary_metrics": {}, "feature_importances": defaultdict(list)}
+    results: dict[Any, Any] = {"summary_metrics": {}, "feature_importances": defaultdict(list)}
     adata.obs["augur_score"] = nan
     for cell_type in track(adata.obs["cell_type"].unique(), description="Processing data."):
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
