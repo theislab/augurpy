@@ -280,8 +280,8 @@ def calculate_auc(
         # concatenate feature importances for each subsample cv
         subsample_feature_importances_dicts = [cv["feature_importances"] for cv in results[cell_type]]
 
-        for d in subsample_feature_importances_dicts:
-            for key, value in d.items():
+        for dictionary in subsample_feature_importances_dicts:
+            for key, value in dictionary.items():
                 results["feature_importances"][key].extend(value)
         results["feature_importances"]["CellType"].extend(
             [cell_type]
