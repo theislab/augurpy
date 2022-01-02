@@ -1,6 +1,5 @@
-import os
-
 from math import isclose
+from pathlib import Path
 
 import numpy as np
 import scanpy as sc
@@ -9,7 +8,7 @@ from augurpy.estimator import Params, create_estimator
 from augurpy.evaluate import calculate_auc, run_cross_validation
 from augurpy.read_load import load
 
-CWD = os.getcwd()
+CWD = Path(__file__).parent.resolve()
 
 sc_sim_adata = sc.read_h5ad(f"{CWD}/sc_sim.h5ad")
 sc_sim_adata = load(sc_sim_adata)
