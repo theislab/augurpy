@@ -215,6 +215,8 @@ def run_cross_validation(
             feature_importances["subsample_idx"].extend(len(x.columns) * [subsample_idx])
             feature_importances["fold"].extend(len(x.columns) * [fold])
 
+    # standardized coefficients with Agresti method
+    # cf. https://think-lab.github.io/d/205/#3
     if isinstance(estimator, LogisticRegression):
         for fold, estimator in list(zip(range(len(results["estimator"])), results["estimator"])):
             feature_importances["genes"].extend(x.columns.tolist())
