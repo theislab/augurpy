@@ -25,27 +25,29 @@ def test_calculate_auc():
 
 
 # Test cross validation
-sc.pp.subsample(sc_sim_adata, n_obs=100, random_state=42)
-
-rf_classifier = create_estimator("random_forest_classifier", Params(random_state=42))
-lr_classifier = create_estimator("logistic_regression_classifier", Params(random_state=42))
-rf_regressor = create_estimator("random_forest_regressor", Params(random_state=42))
-
-
-def test_classifier():
+def test_classifier(adata=sc_sim_adata):
     """Test run cross validation with classifier."""
-    cv = run_cross_validation(sc_sim_adata, rf_classifier, subsample_idx=1, folds=3, random_state=42)
+    adata = sc.pp.subsample(adata, n_obs=100, random_state=42, copy=True)
+
+    rf_classifier = create_estimator("random_forest_classifier", Params(random_state=42))
+    lr_classifier = create_estimator("logistic_regression_classifier", Params(random_state=42))
+
+    cv = run_cross_validation(adata, rf_classifier, subsample_idx=1, folds=3, random_state=42)
     auc = 0.802411
     assert any([isclose(cv["mean_auc"], auc, abs_tol=10 ** -5)])
 
-    cv = run_cross_validation(sc_sim_adata, lr_classifier, subsample_idx=1, folds=3, random_state=42)
+    cv = run_cross_validation(adata, lr_classifier, subsample_idx=1, folds=3, random_state=42)
     auc = 0.869871
     assert any([isclose(cv["mean_auc"], auc, abs_tol=10 ** -5)])
 
 
-def test_regressor():
+def test_regressor(adata=sc_sim_adata):
     """Test run cross validation with regressor."""
-    cv = run_cross_validation(sc_sim_adata, rf_regressor, subsample_idx=1, folds=3, random_state=42)
+    adata = sc.pp.subsample(adata, n_obs=100, random_state=42, copy=True)
+
+    rf_regressor = create_estimator("random_forest_regressor", Params(random_state=42))
+
+    cv = run_cross_validation(adata, rf_regressor, subsample_idx=1, folds=3, random_state=42)
     ccc = 0.433445
     r2 = 0.274051
     assert any([isclose(cv["mean_ccc"], ccc, abs_tol=10 ** -5), isclose(cv["mean_r2"], r2, abs_tol=10 ** -5)])
