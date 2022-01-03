@@ -1,4 +1,5 @@
-from typing import Optional, Union
+"""Read and load input data into anndata object."""
+from __future__ import annotations
 
 import pandas as pd
 from anndata import AnnData
@@ -8,8 +9,8 @@ from scanpy.preprocessing import highly_variable_genes
 
 
 def load(
-    input: Union[AnnData, DataFrame],
-    meta: Optional[DataFrame] = None,
+    input: AnnData | DataFrame,
+    meta: DataFrame | None = None,
     label_col: str = "label_col",
     cell_type_col: str = "cell_type_col",
 ) -> AnnData:
@@ -25,7 +26,8 @@ def load(
             cell in the cell-by-gene expression matrix
 
     Returns:
-        Anndata object containing gene expression values (cells in rows, genes in columns) and cell type, label as obs
+        Anndata object containing gene expression values (cells in rows, genes in columns) and cell type, label and y
+        dummie variables as obs
     """
     if isinstance(input, AnnData):
         input.obs = input.obs.rename(columns={cell_type_col: "cell_type", label_col: "label"})
@@ -34,8 +36,8 @@ def load(
     elif isinstance(input, DataFrame):
         if meta is None:
             try:
-                cell_type = input[cell_type_col]
-                label = input[label_col]
+                _ = input[cell_type_col]
+                _ = input[label_col]
             except KeyError:
                 print("[bold red]No column names matching cell_type_col and label_col.")
 
@@ -57,18 +59,18 @@ def load(
     return adata
 
 
-def feature_selection(input: AnnData) -> AnnData:
-    """Feature selection by variance.
+def feature_selection(adata: AnnData) -> AnnData:
+    """Feature selection by variance using scanpy highly variable genes.
 
     Args:
-        input: Pandas DataFrame containing gene expression values (cells in rows, genes in columns)
+        adata: Anndata object containing gene expression values (cells in rows, genes in columns)
 
     Results:
         Anndata object with highly variable genes added as layer
     """
     min_features_for_selection = 1000
 
-    if len(input.var_names) - 2 > min_features_for_selection:
-        highly_variable_genes(input)
+    if len(adata.var_names) - 2 > min_features_for_selection:
+        highly_variable_genes(adata)
 
-    return input
+    return adata

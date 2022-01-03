@@ -25,6 +25,5 @@ You can then access the respective modules like:
    :recursive:
 
    augurpy.read_load
-   augurpy.estimators
-   augurpy.calculate_AUC
-   augurpy.cv
+   augurpy.estimator
+   augurpy.evaluate

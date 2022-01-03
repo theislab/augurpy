@@ -1,7 +1,10 @@
+"""Calculates augur score for given dataset and estimator."""
+from __future__ import annotations
+
 import random
 from collections import defaultdict
 from math import floor, nan
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Literal, Optional
 
 import numpy as np
 import pandas as pd
@@ -13,19 +16,19 @@ from rich.progress import track
 from sklearn.base import is_classifier
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
-
-from augurpy.cv import run_cross_validation
+from sklearn.metrics import make_scorer, r2_score, roc_auc_score
+from sklearn.model_selection import KFold, cross_validate
 
 
 def cross_validate_subsample(
     adata: AnnData,
-    estimator: Union[RandomForestRegressor, RandomForestClassifier, LogisticRegression],
+    estimator: RandomForestRegressor | RandomForestClassifier | LogisticRegression,
     augur_mode: str,
     subsample_size: int,
     folds: int,
     feature_perc: float,
     subsample_idx: int,
-    random_state: Optional[int],
+    random_state: int | None,
 ) -> DataFrame:
     """Cross validate subsample anndata object.
 
@@ -64,7 +67,7 @@ def draw_subsample(
     subsample_size: int,
     feature_perc: float,
     stratified: bool,
-    random_state: Optional[int],
+    random_state: int | None,
 ) -> AnnData:
     """Subsample and select random features of anndata object.
 
@@ -100,7 +103,104 @@ def draw_subsample(
     return subsample
 
 
-def average_metrics(cell_cv_results: List[Any]) -> Dict[Any, Any]:
+def ccc_score(y_true, y_pred) -> float:
+    """Implementation of Lin's Concordance correlation coefficient, based on https://gitlab.com/-/snippets/1730605.
+
+    Args:
+        y_true: array-like of shape (n_samples), ground truth (correct) target values
+        y_pred: array-like of shape (n_samples), estimated target values
+
+    Returns:
+        Concordance correlation coefficient.
+    """
+    # covariance between y_true and y_pred
+    s_xy = np.cov([y_true, y_pred])[0, 1]
+    # means
+    x_m = np.mean(y_true)
+    y_m = np.mean(y_pred)
+    # variances
+    s_x_sq = np.var(y_true)
+    s_y_sq = np.var(y_pred)
+
+    # condordance correlation coefficient
+    ccc = (2.0 * s_xy) / (s_x_sq + s_y_sq + (x_m - y_m) ** 2)
+
+    return ccc
+
+
+def set_scorer(
+    estimator: RandomForestRegressor | RandomForestClassifier | LogisticRegression,
+) -> dict[str, Any]:
+    """Set scoring fuctions for cross-validation based on estimator.
+
+    Args:
+        estimator: classifier object used to fit the model used to calculate the area under the curve
+
+    Returns:
+        Dict linking name to scorer object and string name
+    """
+    return (
+        {"augur_score": make_scorer(roc_auc_score), "auc": make_scorer(roc_auc_score)}
+        if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, LogisticRegression)
+        else {"augur_score": make_scorer(ccc_score), "r2": make_scorer(r2_score), "ccc": make_scorer(ccc_score)}
+    )
+
+
+def run_cross_validation(
+    subsample: AnnData,
+    estimator: RandomForestRegressor | RandomForestClassifier | LogisticRegression,
+    subsample_idx: int,
+    folds: int = 3,
+    random_state=Optional[int],
+) -> dict:
+    """Perform cross validation on given subsample.
+
+    Args:
+        subsample: subsample of gene expression matrix of size subsample_size
+        estimator: classifier object to use in calculating the area under the curve
+        subsample_idx: index of subsample
+        folds: number of folds
+        random_state: set random fold seed
+
+    Returns:
+        Dictionary containing prediction metrics and estimator for each fold.
+    """
+    scorer = set_scorer(estimator)
+    x = subsample.to_df()
+    y = subsample.obs[[col for col in subsample.obs if col.startswith("y")]]
+    folds = KFold(n_splits=folds, random_state=random_state, shuffle=True)
+
+    results = cross_validate(
+        estimator=estimator,
+        X=x,
+        y=y.values.ravel(),
+        scoring=scorer,
+        cv=folds,
+        return_estimator=True,
+    )
+
+    results["subsample_idx"] = subsample_idx
+    for score in scorer.keys():
+        results[f"mean_{score}"] = results[f"test_{score}"].mean()
+
+    # feature importances
+    feature_importances = defaultdict(list)
+    if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, RandomForestRegressor):
+        for fold, estimator in list(zip(range(len(results["estimator"])), results["estimator"])):
+            feature_importances["genes"].extend(x.columns.tolist())
+            feature_importances["feature_importances"].extend(estimator.feature_importances_.tolist())
+            feature_importances["subsample_idx"].extend(len(x.columns) * [subsample_idx])
+            feature_importances["fold"].extend(len(x.columns) * [fold])
+
+    if isinstance(estimator, LogisticRegression):
+        pass
+
+    results["feature_importances"] = feature_importances
+
+    return results
+
+
+def average_metrics(cell_cv_results: list[Any]) -> dict[Any, Any]:
     """Calculate average metric of cross validation runs done of one cell type.
 
     Args:
@@ -110,7 +210,7 @@ def average_metrics(cell_cv_results: List[Any]) -> Dict[Any, Any]:
         Dict containing the average result for each metric of one cell type
     """
     metric_names = [metric for metric in [*cell_cv_results[0].keys()] if metric.startswith("mean")]
-    metric_list: Dict[Any, Any] = {}
+    metric_list: dict[Any, Any] = {}
     for subsample_cv_result in cell_cv_results:
         for metric in metric_names:
             metric_list[metric] = metric_list.get(metric, []) + [subsample_cv_result[metric]]
@@ -120,7 +220,7 @@ def average_metrics(cell_cv_results: List[Any]) -> Dict[Any, Any]:
 
 def calculate_auc(
     adata: AnnData,
-    classifier: Union[RandomForestClassifier, RandomForestRegressor, LogisticRegression],
+    classifier: RandomForestClassifier | RandomForestRegressor | LogisticRegression,
     n_subsamples: int = 50,
     subsample_size: int = 20,
     folds: int = 3,
@@ -128,9 +228,9 @@ def calculate_auc(
     feature_perc: float = 0.5,
     n_threads: int = 4,
     show_progress: bool = True,
-    augur_mode: Union[Literal["permute"], Literal["default"], Literal["velocity"]] = "default",
-    random_state: Optional[int] = None,
-) -> Tuple[AnnData, Dict[str, Any]]:
+    augur_mode: Literal["permute"] | Literal["default"] | Literal["velocity"] = "default",
+    random_state: int | None = None,
+) -> tuple[AnnData, dict[str, Any]]:
     """Calculates the Area under the Curve using the given classifier.
 
     Args:
@@ -155,7 +255,7 @@ def calculate_auc(
         A dictionary containing the following keys: Dict[X, y, celltypes, parameters, results, feature_importances, AUC]
         and the Anndata object with additional augur_score obs and uns summary.
     """
-    results: Dict[Any, Any] = {"summary_metrics": {}, "feature_importances": defaultdict(list)}
+    results: dict[Any, Any] = {"summary_metrics": {}, "feature_importances": defaultdict(list)}
     adata.obs["augur_score"] = nan
     for cell_type in track(adata.obs["cell_type"].unique(), description="Processing data."):
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
@@ -182,8 +282,8 @@ def calculate_auc(
         # concatenate feature importances for each subsample cv
         subsample_feature_importances_dicts = [cv["feature_importances"] for cv in results[cell_type]]
 
-        for d in subsample_feature_importances_dicts:
-            for key, value in d.items():
+        for dictionary in subsample_feature_importances_dicts:
+            for key, value in dictionary.items():
                 results["feature_importances"][key].extend(value)
         results["feature_importances"]["CellType"].extend(
             [cell_type]
