@@ -16,7 +16,17 @@ from rich.progress import track
 from sklearn.base import is_classifier
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import make_scorer, r2_score, roc_auc_score
+from sklearn.metrics import (
+    accuracy_score,
+    explained_variance_score,
+    f1_score,
+    make_scorer,
+    mean_squared_error,
+    precision_score,
+    r2_score,
+    recall_score,
+    roc_auc_score,
+)
 from sklearn.model_selection import KFold, cross_validate
 
 
@@ -140,9 +150,22 @@ def set_scorer(
         Dict linking name to scorer object and string name
     """
     return (
-        {"augur_score": make_scorer(roc_auc_score), "auc": make_scorer(roc_auc_score)}
+        {
+            "augur_score": make_scorer(roc_auc_score),
+            "auc": make_scorer(roc_auc_score),
+            "accuracy": make_scorer(accuracy_score),
+            "precision": make_scorer(precision_score),
+            "f1": make_scorer(f1_score),
+            "recall": make_scorer(recall_score),
+        }
         if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, LogisticRegression)
-        else {"augur_score": make_scorer(ccc_score), "r2": make_scorer(r2_score), "ccc": make_scorer(ccc_score)}
+        else {
+            "augur_score": make_scorer(ccc_score),
+            "r2": make_scorer(r2_score),
+            "ccc": make_scorer(ccc_score),
+            "neg_mean_squared_error": make_scorer(mean_squared_error),
+            "explained_variance": make_scorer(explained_variance_score),
+        }
     )
 
 
@@ -193,7 +216,13 @@ def run_cross_validation(
             feature_importances["fold"].extend(len(x.columns) * [fold])
 
     if isinstance(estimator, LogisticRegression):
-        pass
+        for fold, estimator in list(zip(range(len(results["estimator"])), results["estimator"])):
+            feature_importances["genes"].extend(x.columns.tolist())
+            feature_importances["feature_importances"].extend(
+                ((estimator.coef_ - estimator.coef_.mean()) / estimator.coef_.std()).flatten().tolist()
+            )
+            feature_importances["subsample_idx"].extend(len(x.columns) * [subsample_idx])
+            feature_importances["fold"].extend(len(x.columns) * [fold])
 
     results["feature_importances"] = feature_importances
 
