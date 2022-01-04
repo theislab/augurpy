@@ -249,7 +249,7 @@ def average_metrics(cell_cv_results: list[Any]) -> dict[Any, Any]:
     return {metric: np.mean(values) for metric, values in metric_list.items()}
 
 
-def calculate_auc(
+def predict(
     adata: AnnData,
     classifier: RandomForestClassifier | RandomForestRegressor | LogisticRegression,
     n_subsamples: int = 50,

@@ -5,7 +5,7 @@ import numpy as np
 import scanpy as sc
 
 from augurpy.estimator import Params, create_estimator
-from augurpy.evaluate import calculate_auc, run_cross_validation
+from augurpy.evaluate import predict, run_cross_validation
 from augurpy.read_load import load
 
 CWD = Path(__file__).parent.resolve()
@@ -21,7 +21,7 @@ rf_regressor = create_estimator("random_forest_regressor", Params(random_state=4
 
 def test_random_forest_classifier():
     """Tests random forest for auc calculation."""
-    adata, results = calculate_auc(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_classifier, random_state=42)
+    adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_classifier, random_state=42)
     assert results["CellTypeA"][2]["subsample_idx"] == 2
     assert "augur_score" in adata.obs.columns
     assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.433333, 0.666667, 0.666667])
@@ -30,7 +30,7 @@ def test_random_forest_classifier():
 
 def test_logistic_regression_classifier():
     """Tests logistic classifier for auc calculation."""
-    adata, results = calculate_auc(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=lr_classifier, random_state=42)
+    adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=lr_classifier, random_state=42)
     assert "augur_score" in adata.obs.columns
     assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.622222, 0.916667, 1.0])
     assert "feature_importances" in results.keys()
@@ -38,7 +38,7 @@ def test_logistic_regression_classifier():
 
 def test_random_forest_regressor():
     """Tests random forest regressor for ccc calculation."""
-    adata, results = calculate_auc(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_regressor, random_state=42)
+    adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_regressor, random_state=42)
     assert "augur_score" in adata.obs.columns
     assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.192365, 0.485231, 0.757517])
     assert np.allclose(results["summary_metrics"].loc["mean_r2"].tolist(), [-0.416232, 0.170226, 0.540434])
