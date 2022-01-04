@@ -12,15 +12,36 @@ CWD = Path(__file__).parent.resolve()
 
 sc_sim_adata = sc.read_h5ad(f"{CWD}/sc_sim.h5ad")
 sc_sim_adata = load(sc_sim_adata)
-estimator = create_estimator("random_forest_classifier", Params(random_state=42))
+
+# estimators
+rf_classifier = create_estimator("random_forest_classifier", Params(random_state=42))
+lr_classifier = create_estimator("logistic_regression_classifier", Params(random_state=42))
+rf_regressor = create_estimator("random_forest_regressor", Params(random_state=42))
 
 
-def test_predict():
-    """Tests auc calculation."""
-    adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=estimator, random_state=42)
+def test_random_forest_classifier():
+    """Tests random forest for auc calculation."""
+    adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_classifier, random_state=42)
     assert results["CellTypeA"][2]["subsample_idx"] == 2
     assert "augur_score" in adata.obs.columns
     assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.433333, 0.666667, 0.666667])
+    assert "feature_importances" in results.keys()
+
+
+def test_logistic_regression_classifier():
+    """Tests logistic classifier for auc calculation."""
+    adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=lr_classifier, random_state=42)
+    assert "augur_score" in adata.obs.columns
+    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.622222, 0.916667, 1.0])
+    assert "feature_importances" in results.keys()
+
+
+def test_random_forest_regressor():
+    """Tests random forest regressor for ccc calculation."""
+    adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_regressor, random_state=42)
+    assert "augur_score" in adata.obs.columns
+    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.192365, 0.485231, 0.757517])
+    assert np.allclose(results["summary_metrics"].loc["mean_r2"].tolist(), [-0.416232, 0.170226, 0.540434])
     assert "feature_importances" in results.keys()
 
 
@@ -28,9 +49,6 @@ def test_predict():
 def test_classifier(adata=sc_sim_adata):
     """Test run cross validation with classifier."""
     adata = sc.pp.subsample(adata, n_obs=100, random_state=42, copy=True)
-
-    rf_classifier = create_estimator("random_forest_classifier", Params(random_state=42))
-    lr_classifier = create_estimator("logistic_regression_classifier", Params(random_state=42))
 
     cv = run_cross_validation(adata, rf_classifier, subsample_idx=1, folds=3, random_state=42)
     auc = 0.802411
@@ -44,8 +62,6 @@ def test_classifier(adata=sc_sim_adata):
 def test_regressor(adata=sc_sim_adata):
     """Test run cross validation with regressor."""
     adata = sc.pp.subsample(adata, n_obs=100, random_state=42, copy=True)
-
-    rf_regressor = create_estimator("random_forest_regressor", Params(random_state=42))
 
     cv = run_cross_validation(adata, rf_regressor, subsample_idx=1, folds=3, random_state=42)
     ccc = 0.433445
