@@ -5,7 +5,7 @@ import numpy as np
 import scanpy as sc
 
 from augurpy.estimator import Params, create_estimator
-from augurpy.evaluate import predict, run_cross_validation
+from augurpy.evaluate import draw_subsample, predict, run_cross_validation
 from augurpy.read_load import load
 
 CWD = Path(__file__).parent.resolve()
@@ -24,7 +24,7 @@ def test_random_forest_classifier():
     adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_classifier, random_state=42)
     assert results["CellTypeA"][2]["subsample_idx"] == 2
     assert "augur_score" in adata.obs.columns
-    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.433333, 0.666667, 0.666667])
+    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.550265, 0.801587, 0.912698])
     assert "feature_importances" in results.keys()
 
 
@@ -32,7 +32,7 @@ def test_logistic_regression_classifier():
     """Tests logistic classifier for auc calculation."""
     adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=lr_classifier, random_state=42)
     assert "augur_score" in adata.obs.columns
-    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.622222, 0.916667, 1.0])
+    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.686508, 0.917989, 0.952381])
     assert "feature_importances" in results.keys()
 
 
@@ -40,8 +40,8 @@ def test_random_forest_regressor():
     """Tests random forest regressor for ccc calculation."""
     adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_regressor, random_state=42)
     assert "augur_score" in adata.obs.columns
-    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.192365, 0.485231, 0.757517])
-    assert np.allclose(results["summary_metrics"].loc["mean_r2"].tolist(), [-0.416232, 0.170226, 0.540434])
+    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [-0.038608, 0.376034, 0.422335])
+    assert np.allclose(results["summary_metrics"].loc["mean_r2"].tolist(), [-0.167586, 0.182294, 0.199256])
     assert "feature_importances" in results.keys()
 
 
@@ -51,11 +51,11 @@ def test_classifier(adata=sc_sim_adata):
     adata = sc.pp.subsample(adata, n_obs=100, random_state=42, copy=True)
 
     cv = run_cross_validation(adata, rf_classifier, subsample_idx=1, folds=3, random_state=42)
-    auc = 0.802411
+    auc = 0.757244
     assert any([isclose(cv["mean_auc"], auc, abs_tol=10 ** -5)])
 
     cv = run_cross_validation(adata, lr_classifier, subsample_idx=1, folds=3, random_state=42)
-    auc = 0.869871
+    auc = 0.837799
     assert any([isclose(cv["mean_auc"], auc, abs_tol=10 ** -5)])
 
 
@@ -64,6 +64,26 @@ def test_regressor(adata=sc_sim_adata):
     adata = sc.pp.subsample(adata, n_obs=100, random_state=42, copy=True)
 
     cv = run_cross_validation(adata, rf_regressor, subsample_idx=1, folds=3, random_state=42)
-    ccc = 0.433445
-    r2 = 0.274051
+    ccc = 0.499154
+    r2 = 0.395041
     assert any([isclose(cv["mean_ccc"], ccc, abs_tol=10 ** -5), isclose(cv["mean_r2"], r2, abs_tol=10 ** -5)])
+
+
+def test_subsample(adata=sc_sim_adata):
+    """Test subsampling process."""
+    categorical_subsample = draw_subsample(
+        adata=adata, augur_mode="default", subsample_size=20, feature_perc=0.3, categorical=True, random_state=42
+    )
+    # assert len(categorical_subsample.var_names) == 0.3*len(sc_sim_adata.var['highly_variable'])
+    assert len(categorical_subsample.obs_names) == 40
+
+    non_categorical_subsample = draw_subsample(
+        adata=adata, augur_mode="default", subsample_size=20, feature_perc=0.3, categorical=False, random_state=42
+    )
+    assert len(non_categorical_subsample.obs_names) == 20
+    permut_subsample = draw_subsample(
+        adata=adata, augur_mode="permut", subsample_size=20, feature_perc=0.3, categorical=True, random_state=42
+    )
+    assert (
+        sc_sim_adata.obs.loc[permut_subsample.obs.index, "y_treatment"] != permut_subsample.obs["y_treatment"]
+    ).any()

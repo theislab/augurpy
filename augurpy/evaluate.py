@@ -13,7 +13,7 @@ from anndata import AnnData
 from joblib import Parallel, delayed
 from pandas import DataFrame
 from rich.progress import track
-from sklearn.base import is_classifier
+from sklearn.base import is_classifier, is_regressor
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -27,7 +27,7 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-from sklearn.model_selection import KFold, cross_validate
+from sklearn.model_selection import StratifiedKFold, cross_validate
 
 
 def cross_validate_subsample(
@@ -62,8 +62,8 @@ def cross_validate_subsample(
         augur_mode,
         subsample_size,
         feature_perc=feature_perc,
-        stratified=is_classifier(estimator),
-        random_state=random_state,
+        categorical=is_classifier(estimator),
+        random_state=subsample_idx,
     )
     results = run_cross_validation(
         estimator=estimator, subsample=subsample, folds=folds, subsample_idx=subsample_idx, random_state=random_state
@@ -76,8 +76,8 @@ def draw_subsample(
     augur_mode: str,
     subsample_size: int,
     feature_perc: float,
-    stratified: bool,
-    random_state: int | None,
+    categorical: bool,
+    random_state: int,
 ) -> AnnData:
     """Subsample and select random features of anndata object.
 
@@ -88,7 +88,7 @@ def draw_subsample(
             while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
             permuting the labels
         subsample_size: number of cells to subsample randomly per type from each experimental condition
-        stratified: if `True` subsamples are stratified according to condition
+        categorical_data: if `True` subsamples are
         random_state: set numpy random seed and sampling seed
 
     Returns:
@@ -96,20 +96,43 @@ def draw_subsample(
     """
     if augur_mode == "permut":
         # shuffle labels
+        adata = adata.copy()
         y_columns = [col for col in adata.obs if col.startswith("y")]
-        adata.obs[y_columns] = adata.obs[y_columns].sample(frac=1, random_state=random_state).reset_index(drop=True)
+        adata.obs[y_columns] = adata.obs[y_columns].sample(frac=1, random_state=random_state).values
 
     if augur_mode == "velocity":
         # no feature selection, assuming this has already happenend in calculating velocity
         subsample = sc.pp.subsample(adata, n_obs=subsample_size, copy=True, random_state=random_state)
         return subsample
 
-    # randomly sample features
-    if random_state is not None:
-        random.seed(random_state)
-    features = random.sample(adata.var_names.tolist(), floor(len(adata.var_names.tolist()) * feature_perc))
-    # randomly sample samples
-    subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True, random_state=random_state)
+    # randomly sample features from highly variable genes
+    random.seed(random_state)
+    highly_variable_genes = adata.var_names[adata.var["highly_variable"]].tolist()
+    features = random.sample(highly_variable_genes, floor(len(highly_variable_genes) * feature_perc))
+    # randomly sample samples for each label
+    if categorical:
+        label_subsamples = []
+        y_dummies = adata.obs[[col for col in adata.obs if col.startswith("y")]]
+        for label_column in y_dummies:
+            label_subsamples.append(
+                sc.pp.subsample(
+                    adata[adata.obs[label_column] == 1, features],
+                    n_obs=subsample_size,
+                    copy=True,
+                    random_state=random_state,
+                )
+            )
+        label_subsamples.append(
+            sc.pp.subsample(
+                adata[~adata.obs[y_dummies.columns].any(axis="columns"), features],
+                n_obs=subsample_size,
+                copy=True,
+                random_state=random_state,
+            )
+        )
+        subsample = AnnData.concatenate(*label_subsamples, index_unique=None)
+    else:
+        subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True, random_state=random_state)
     return subsample
 
 
@@ -138,6 +161,24 @@ def ccc_score(y_true, y_pred) -> float:
     return ccc
 
 
+def tp_score(y_true, y_pred) -> float:
+    """Implementation of true positive score."""
+    tp = 0
+    for i in range(len(y_true)):
+        if y_true[i] == y_pred[i] == 1:
+            tp += 1
+    return tp
+
+
+def fp_score(y_true, y_pred) -> float:
+    """Implementation of false positive score."""
+    fp = 0
+    for i in range(len(y_true)):
+        if y_true[i] == 0 and y_pred[i] == 1:
+            fp += 1
+    return fp
+
+
 def set_scorer(
     estimator: RandomForestRegressor | RandomForestClassifier | LogisticRegression,
 ) -> dict[str, Any]:
@@ -157,6 +198,8 @@ def set_scorer(
             "precision": make_scorer(precision_score),
             "f1": make_scorer(f1_score),
             "recall": make_scorer(recall_score),
+            "tp": make_scorer(tp_score),
+            "fp": make_scorer(fp_score),
         }
         if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, LogisticRegression)
         else {
@@ -191,7 +234,7 @@ def run_cross_validation(
     scorer = set_scorer(estimator)
     x = subsample.to_df()
     y = subsample.obs[[col for col in subsample.obs if col.startswith("y")]]
-    folds = KFold(n_splits=folds, random_state=random_state, shuffle=True)
+    folds = StratifiedKFold(n_splits=folds, random_state=random_state, shuffle=True)
 
     results = cross_validate(
         estimator=estimator,
@@ -269,7 +312,8 @@ def predict(
         classifier: classifier to use in calculating augur metrics, either random forest or logistic regression
         n_subsamples: number of random subsamples to draw from complete dataset for each cell type
         subsample_size: number of cells to subsample randomly per type from each experimental condition
-        folds: number of folds to run cross validation on
+        folds: number of folds to run cross validation on. Be careful changing this parameter without also changing
+            `subsample_size`.
         min_cells: minimum number of cells for a particular cell type in each condition in order to retain that type for
             analysis (depricated..)
         feature_perc: proportion of genes that are randomly selected as features for input to the classifier in each
@@ -279,47 +323,60 @@ def predict(
         augur_mode: one of default, velocity or permute. Setting augur_mode = "velocity" disables feature selection,
             assuming feature selection has been performed by the RNA velocity procedure to produce the input matrix,
             while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
-            permuting the labels
+            permuting the labels. Note that when setting augur_mode = "permute" n_subsample values less than 100 will be
+            set to 500.
         random_state: set numpy random seed, sampling seed and fold seed
 
     Returns:
         A dictionary containing the following keys: Dict[X, y, celltypes, parameters, results, feature_importances, AUC]
         and the Anndata object with additional augur_score obs and uns summary.
     """
+    if augur_mode == "permute" and n_subsamples < 100:
+        n_subsamples = 500
+    if (is_regressor(classifier)) and len(adata.obs["label"].unique()) <= 3:
+        print(f"[bold red] regressors cannot be used on {len(adata.obs['label'].unique())} labels. Try a classifier.")
     results: dict[Any, Any] = {"summary_metrics": {}, "feature_importances": defaultdict(list)}
     adata.obs["augur_score"] = nan
     for cell_type in track(adata.obs["cell_type"].unique(), description="Processing data."):
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
-        results[cell_type] = Parallel(n_jobs=n_threads)(
-            delayed(cross_validate_subsample)(
-                adata=cell_type_subsample,
-                estimator=classifier,
-                augur_mode=augur_mode,
-                subsample_size=subsample_size,
-                folds=folds,
-                feature_perc=feature_perc,
-                subsample_idx=i,
-                random_state=random_state,
+        if min_cells is not None and len(cell_type_subsample) < min_cells:
+            print(
+                f"[bold red]Skipping {cell_type} cell type - {len(cell_type_subsample)} samples is less than min_cells {min_cells}."
             )
-            for i in range(n_subsamples)
-        )
-        # summarize scores for cell type
-        results["summary_metrics"][cell_type] = average_metrics(results[cell_type])
+        else:
+            results[cell_type] = Parallel(n_jobs=n_threads)(
+                delayed(cross_validate_subsample)(
+                    adata=cell_type_subsample,
+                    estimator=classifier,
+                    augur_mode=augur_mode,
+                    subsample_size=subsample_size,
+                    folds=folds,
+                    feature_perc=feature_perc,
+                    subsample_idx=i,
+                    random_state=random_state,
+                )
+                for i in range(n_subsamples)
+            )
+            # summarize scores for cell type
+            results["summary_metrics"][cell_type] = average_metrics(results[cell_type])
 
-        # add scores as observation to anndata
-        mask = adata.obs["cell_type"].str.startswith(cell_type)
-        adata.obs.loc[mask, "augur_score"] = results["summary_metrics"][cell_type]["mean_augur_score"]
+            # add scores as observation to anndata
+            mask = adata.obs["cell_type"].str.startswith(cell_type)
+            adata.obs.loc[mask, "augur_score"] = results["summary_metrics"][cell_type]["mean_augur_score"]
 
-        # concatenate feature importances for each subsample cv
-        subsample_feature_importances_dicts = [cv["feature_importances"] for cv in results[cell_type]]
+            # concatenate feature importances for each subsample cv
+            subsample_feature_importances_dicts = [cv["feature_importances"] for cv in results[cell_type]]
 
-        for dictionary in subsample_feature_importances_dicts:
-            for key, value in dictionary.items():
-                results["feature_importances"][key].extend(value)
-        results["feature_importances"]["CellType"].extend(
-            [cell_type]
-            * (len(results["feature_importances"]["genes"]) - len(results["feature_importances"]["CellType"]))
-        )
+            for dictionary in subsample_feature_importances_dicts:
+                for key, value in dictionary.items():
+                    results["feature_importances"][key].extend(value)
+            results["feature_importances"]["CellType"].extend(
+                [cell_type]
+                * (len(results["feature_importances"]["genes"]) - len(results["feature_importances"]["CellType"]))
+            )
+    # make sure one cell type worked
+    if len(results) <= 2:
+        print("[Bold red]No cells types had more than min_cells needed. Please adjust data or min_cells parameter.")
 
     results["summary_metrics"] = pd.DataFrame(results["summary_metrics"])
     results["feature_importances"] = pd.DataFrame(results["feature_importances"])

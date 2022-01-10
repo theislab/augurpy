@@ -47,7 +47,8 @@ def load(
         adata = AnnData(X=x, obs=pd.DataFrame({"cell_type": cell_type, "label": label}))
 
     adata = feature_selection(adata)
-
+    if len(adata.obs["label"].unique()) < 2:
+        raise ValueError("Less than two unique labels in dataset. At least two are needed for the analysis.")
     if adata.obs["label"].dtype.name == "category":
         df_dummies = pd.get_dummies(adata.obs["label"], prefix="y", prefix_sep="_", drop_first=True)
         adata.obs = pd.concat([adata.obs, df_dummies], axis=1)
