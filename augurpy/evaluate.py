@@ -161,24 +161,6 @@ def ccc_score(y_true, y_pred) -> float:
     return ccc
 
 
-def tp_score(y_true, y_pred) -> float:
-    """Implementation of true positive score."""
-    tp = 0
-    for i in range(len(y_true)):
-        if y_true[i] == y_pred[i] == 1:
-            tp += 1
-    return tp
-
-
-def fp_score(y_true, y_pred) -> float:
-    """Implementation of false positive score."""
-    fp = 0
-    for i in range(len(y_true)):
-        if y_true[i] == 0 and y_pred[i] == 1:
-            fp += 1
-    return fp
-
-
 def set_scorer(
     estimator: RandomForestRegressor | RandomForestClassifier | LogisticRegression,
 ) -> dict[str, Any]:
@@ -198,8 +180,6 @@ def set_scorer(
             "precision": make_scorer(precision_score),
             "f1": make_scorer(f1_score),
             "recall": make_scorer(recall_score),
-            "tp": make_scorer(tp_score),
-            "fp": make_scorer(fp_score),
         }
         if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, LogisticRegression)
         else {
