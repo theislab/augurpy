@@ -315,7 +315,11 @@ def predict(
         n_subsamples = 500
     if (is_regressor(classifier)) and len(adata.obs["label"].unique()) <= 3:
         print(f"[bold red] regressors cannot be used on {len(adata.obs['label'].unique())} labels. Try a classifier.")
-    results: dict[Any, Any] = {"summary_metrics": {}, "feature_importances": defaultdict(list)}
+    results: dict[Any, Any] = {
+        "summary_metrics": {},
+        "feature_importances": defaultdict(list),
+        "full_results": defaultdict(list),
+    }
     adata.obs["augur_score"] = nan
     for cell_type in track(adata.obs["cell_type"].unique(), description="Processing data."):
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
@@ -350,16 +354,23 @@ def predict(
             for dictionary in subsample_feature_importances_dicts:
                 for key, value in dictionary.items():
                     results["feature_importances"][key].extend(value)
-            results["feature_importances"]["CellType"].extend(
+            results["feature_importances"]["cell_type"].extend(
                 [cell_type]
-                * (len(results["feature_importances"]["genes"]) - len(results["feature_importances"]["CellType"]))
+                * (len(results["feature_importances"]["genes"]) - len(results["feature_importances"]["cell_type"]))
             )
+
+            for idx, cv in zip(range(n_subsamples), results[cell_type]):
+                results["full_results"]["idx"].extend([idx] * folds)
+                results["full_results"]["augur_score"].extend(cv["test_augur_score"])
+                results["full_results"]["folds"].extend(range(folds))
+            results["full_results"]["cell_type"].extend([cell_type] * folds * n_subsamples)
     # make sure one cell type worked
     if len(results) <= 2:
         print("[Bold red]No cells types had more than min_cells needed. Please adjust data or min_cells parameter.")
 
     results["summary_metrics"] = pd.DataFrame(results["summary_metrics"])
     results["feature_importances"] = pd.DataFrame(results["feature_importances"])
+    results["full_results"] = pd.DataFrame(results["full_results"])
     adata.uns["summary_metrics"] = pd.DataFrame(results["summary_metrics"])
 
     return adata, results
