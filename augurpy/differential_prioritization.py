@@ -1,6 +1,4 @@
-"""
-Performs permutation tests that identifies cell types with statistically significant differences in `augur_score` between two conditions respectively compared to the control.
-"""
+"""Predicts the differential prioritization by performing permutation tests on samples."""
 from __future__ import annotations
 
 from typing import Any
@@ -20,6 +18,9 @@ def predict_differential_prioritization(
     n_permutations: int = 1000,
 ) -> DataFrame:
     """Predicts the differential prioritization by performing permutation tests on samples.
+
+    Performs permutation tests that identifies cell types with statistically significant differences in `augur_score`
+    between two conditions respectively compared to the control.
 
     Args:
         augur1: Augurpy results from condition 1, obtained from `predict()[1]`
