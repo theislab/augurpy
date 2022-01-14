@@ -93,7 +93,7 @@ def feature_selection(adata: AnnData) -> AnnData:
         try:
             sc.pp.highly_variable_genes(adata)
         except ValueError:
-            print("Data not normalized. Normalizing now using scanpy log1p normalize.")
+            print("[bold yellow]Data not normalized. Normalizing now using scanpy log1p normalize.")
             sc.pp.log1p(adata)
             sc.pp.highly_variable_genes(adata)
 
