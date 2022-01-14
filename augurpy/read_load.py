@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import pandas as pd
+import scanpy as sc
 from anndata import AnnData
+from click import MissingParameter
 from pandas import DataFrame
 from rich import print
-from scanpy.preprocessing import highly_variable_genes
 
 
 def load(
@@ -13,6 +14,8 @@ def load(
     meta: DataFrame | None = None,
     label_col: str = "label_col",
     cell_type_col: str = "cell_type_col",
+    condition_label: str | None = None,
+    treatment_label: str | None = None,
 ) -> AnnData:
     """Loads the input data.
 
@@ -24,6 +27,8 @@ def load(
             in the cell-by-gene expression matrix
         cell_type_col: column of the meta DataFrame or the Anndata or matrix containing the cell type labels for each
             cell in the cell-by-gene expression matrix
+        condition_label: in the case of more than two labels, this label is used in the analysis
+        treatment_label: in the case of more than two labels, this label is used in the analysis
 
     Returns:
         Anndata object containing gene expression values (cells in rows, genes in columns) and cell type, label and y
@@ -47,14 +52,27 @@ def load(
         adata = AnnData(X=x, obs=pd.DataFrame({"cell_type": cell_type, "label": label}))
 
     adata = feature_selection(adata)
+
     if len(adata.obs["label"].unique()) < 2:
         raise ValueError("Less than two unique labels in dataset. At least two are needed for the analysis.")
+    # dummie variables for categorical data
     if adata.obs["label"].dtype.name == "category":
-        df_dummies = pd.get_dummies(adata.obs["label"], prefix="y", prefix_sep="_", drop_first=True)
+        df_dummies = pd.get_dummies(adata.obs["label"], prefix="y", prefix_sep="_")
+
+        # only pass on the condition and treatment column
+        if len(adata.obs["label"].unique()) > 2:
+            if condition_label is not None and treatment_label is not None:
+                df_dummies = df_dummies[[f"y_{condition_label}", f"y_{treatment_label}"]]
+
+            else:
+                raise MissingParameter(
+                    f"[Bold red]More than two labels in {label_col}. Please specify condition and treatment label."
+                )
+
         adata.obs = pd.concat([adata.obs, df_dummies], axis=1)
     else:
         y = adata.obs["label"].to_frame()
-        y = y.rename(columns={"label": "y"})
+        y = y.rename(columns={"label": "y_"})
         adata.obs = pd.concat([adata.obs, y], axis=1)
 
     return adata
@@ -72,6 +90,11 @@ def feature_selection(adata: AnnData) -> AnnData:
     min_features_for_selection = 1000
 
     if len(adata.var_names) - 2 > min_features_for_selection:
-        highly_variable_genes(adata)
+        try:
+            sc.pp.highly_variable_genes(adata)
+        except ValueError:
+            print("[bold yellow]Data not normalized. Normalizing now using scanpy log1p normalize.")
+            sc.pp.log1p(adata)
+            sc.pp.highly_variable_genes(adata)
 
     return adata

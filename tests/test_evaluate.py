@@ -24,7 +24,7 @@ def test_random_forest_classifier():
     adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_classifier, random_state=42)
     assert results["CellTypeA"][2]["subsample_idx"] == 2
     assert "augur_score" in adata.obs.columns
-    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.550265, 0.801587, 0.912698])
+    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.632275, 0.817460, 0.925925])
     assert "feature_importances" in results.keys()
 
 
@@ -32,7 +32,7 @@ def test_logistic_regression_classifier():
     """Tests logistic classifier for auc calculation."""
     adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=lr_classifier, random_state=42)
     assert "augur_score" in adata.obs.columns
-    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.686508, 0.917989, 0.952381])
+    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.657407, 0.911375, 0.924603])
     assert "feature_importances" in results.keys()
 
 
@@ -51,7 +51,7 @@ def test_classifier(adata=sc_sim_adata):
     adata = sc.pp.subsample(adata, n_obs=100, random_state=42, copy=True)
 
     cv = run_cross_validation(adata, rf_classifier, subsample_idx=1, folds=3, random_state=42)
-    auc = 0.757244
+    auc = 0.745520
     assert any([isclose(cv["mean_auc"], auc, abs_tol=10 ** -5)])
 
     cv = run_cross_validation(adata, lr_classifier, subsample_idx=1, folds=3, random_state=42)

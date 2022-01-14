@@ -97,7 +97,7 @@ def draw_subsample(
     if augur_mode == "permut":
         # shuffle labels
         adata = adata.copy()
-        y_columns = [col for col in adata.obs if col.startswith("y")]
+        y_columns = [col for col in adata.obs if col.startswith("y_")]
         adata.obs[y_columns] = adata.obs[y_columns].sample(frac=1, random_state=random_state).values
 
     if augur_mode == "velocity":
@@ -112,7 +112,7 @@ def draw_subsample(
     # randomly sample samples for each label
     if categorical:
         label_subsamples = []
-        y_dummies = adata.obs[[col for col in adata.obs if col.startswith("y")]]
+        y_dummies = adata.obs[[col for col in adata.obs if col.startswith("y_")]]
         for label_column in y_dummies:
             label_subsamples.append(
                 sc.pp.subsample(
@@ -122,14 +122,6 @@ def draw_subsample(
                     random_state=random_state,
                 )
             )
-        label_subsamples.append(
-            sc.pp.subsample(
-                adata[~adata.obs[y_dummies.columns].any(axis="columns"), features],
-                n_obs=subsample_size,
-                copy=True,
-                random_state=random_state,
-            )
-        )
         subsample = AnnData.concatenate(*label_subsamples, index_unique=None)
     else:
         subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True, random_state=random_state)
@@ -213,7 +205,8 @@ def run_cross_validation(
     """
     scorer = set_scorer(estimator)
     x = subsample.to_df()
-    y = subsample.obs[[col for col in subsample.obs if col.startswith("y")]]
+    # taking the first of the two columns
+    y = subsample.obs[[col for col in subsample.obs if col.startswith("y_")][0]]
     folds = StratifiedKFold(n_splits=folds, random_state=random_state, shuffle=True)
 
     results = cross_validate(
