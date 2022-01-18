@@ -7,10 +7,7 @@ from anndata import AnnData
 from click import MissingParameter
 from pandas import DataFrame
 from rich import print
-<<<<<<< HEAD
 from sklearn.preprocessing import LabelEncoder
-=======
->>>>>>> development
 
 
 def load(
