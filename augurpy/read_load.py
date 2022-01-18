@@ -4,9 +4,13 @@ from __future__ import annotations
 import pandas as pd
 import scanpy as sc
 from anndata import AnnData
+from click import MissingParameter
 from pandas import DataFrame
 from rich import print
+<<<<<<< HEAD
 from sklearn.preprocessing import LabelEncoder
+=======
+>>>>>>> development
 
 
 def load(
@@ -88,7 +92,7 @@ def feature_selection(adata: AnnData) -> AnnData:
         try:
             sc.pp.highly_variable_genes(adata)
         except ValueError:
-            print("Data not normalized. Normalizing now using scanpy log1p normalize.")
+            print("[bold yellow]Data not normalized. Normalizing now using scanpy log1p normalize.")
             sc.pp.log1p(adata)
             sc.pp.highly_variable_genes(adata)
 
