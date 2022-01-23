@@ -4,7 +4,6 @@ from __future__ import annotations
 import pandas as pd
 import scanpy as sc
 from anndata import AnnData
-from click import MissingParameter
 from pandas import DataFrame
 from rich import print
 from sklearn.preprocessing import LabelEncoder
