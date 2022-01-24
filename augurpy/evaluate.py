@@ -314,6 +314,8 @@ def predict(
             "[Bold red]Logistic regression cannot be used for multiclass classification. "
             + "[Bold red]Use a random forest classifier or filter labels in load()."
         )
+    if min_cells is None:
+        min_cells = n_subsamples
     results: dict[Any, Any] = {
         "summary_metrics": {},
         "feature_importances": defaultdict(list),
@@ -322,9 +324,19 @@ def predict(
     adata.obs["augur_score"] = nan
     for cell_type in track(adata.obs["cell_type"].unique(), description="Processing data."):
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
-        if min_cells is not None and len(cell_type_subsample) < min_cells:
+        if len(cell_type_subsample) < min_cells:
             print(
                 f"[bold red]Skipping {cell_type} cell type - {len(cell_type_subsample)} samples is less than min_cells {min_cells}."
+            )
+        elif (
+            cell_type_subsample.obs.groupby(
+                ["cell_type", "label"],
+            ).y_.count()
+            < subsample_size
+        ).any():
+            print(
+                f"[bold red]Skipping {cell_type} cell type - the number of samples for at least one class type is less than "
+                f"subsample size {subsample_size}."
             )
         else:
             results[cell_type] = Parallel(n_jobs=n_threads)(
