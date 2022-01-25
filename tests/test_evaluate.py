@@ -2,6 +2,7 @@ from math import isclose
 from pathlib import Path
 
 import numpy as np
+import pytest
 import scanpy as sc
 
 from augurpy.estimator import Params, create_estimator
@@ -24,7 +25,7 @@ def test_random_forest_classifier():
     adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_classifier, random_state=42)
     assert results["CellTypeA"][2]["subsample_idx"] == 2
     assert "augur_score" in adata.obs.columns
-    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.632275, 0.817460, 0.925925])
+    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.708805, 0.950491, 0.978835])
     assert "feature_importances" in results.keys()
 
 
@@ -32,17 +33,14 @@ def test_logistic_regression_classifier():
     """Tests logistic classifier for auc calculation."""
     adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=lr_classifier, random_state=42)
     assert "augur_score" in adata.obs.columns
-    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.657407, 0.911375, 0.924603])
+    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.702947, 0.992819, 0.990173])
     assert "feature_importances" in results.keys()
 
 
 def test_random_forest_regressor():
     """Tests random forest regressor for ccc calculation."""
-    adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_regressor, random_state=42)
-    assert "augur_score" in adata.obs.columns
-    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [-0.038608, 0.376034, 0.422335])
-    assert np.allclose(results["summary_metrics"].loc["mean_r2"].tolist(), [-0.167586, 0.182294, 0.199256])
-    assert "feature_importances" in results.keys()
+    with pytest.raises(ValueError):
+        predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_regressor, random_state=42)
 
 
 # Test cross validation
@@ -51,11 +49,11 @@ def test_classifier(adata=sc_sim_adata):
     adata = sc.pp.subsample(adata, n_obs=100, random_state=42, copy=True)
 
     cv = run_cross_validation(adata, rf_classifier, subsample_idx=1, folds=3, random_state=42)
-    auc = 0.745520
+    auc = 0.870408
     assert any([isclose(cv["mean_auc"], auc, abs_tol=10 ** -5)])
 
     cv = run_cross_validation(adata, lr_classifier, subsample_idx=1, folds=3, random_state=42)
-    auc = 0.837799
+    auc = 0.965745
     assert any([isclose(cv["mean_auc"], auc, abs_tol=10 ** -5)])
 
 
@@ -84,6 +82,4 @@ def test_subsample(adata=sc_sim_adata):
     permut_subsample = draw_subsample(
         adata=adata, augur_mode="permut", subsample_size=20, feature_perc=0.3, categorical=True, random_state=42
     )
-    assert (
-        sc_sim_adata.obs.loc[permut_subsample.obs.index, "y_treatment"] != permut_subsample.obs["y_treatment"]
-    ).any()
+    assert (sc_sim_adata.obs.loc[permut_subsample.obs.index, "y_"] != permut_subsample.obs["y_"]).any()

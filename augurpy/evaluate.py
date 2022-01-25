@@ -112,11 +112,11 @@ def draw_subsample(
     # randomly sample samples for each label
     if categorical:
         label_subsamples = []
-        y_dummies = adata.obs[[col for col in adata.obs if col.startswith("y_")]]
-        for label_column in y_dummies:
+        y_encodings = adata.obs["y_"].unique()
+        for code in y_encodings:
             label_subsamples.append(
                 sc.pp.subsample(
-                    adata[adata.obs[label_column] == 1, features],
+                    adata[adata.obs["y_"] == code, features],
                     n_obs=subsample_size,
                     copy=True,
                     random_state=random_state,
@@ -166,12 +166,12 @@ def set_scorer(
     """
     return (
         {
-            "augur_score": make_scorer(roc_auc_score),
-            "auc": make_scorer(roc_auc_score),
+            "augur_score": make_scorer(roc_auc_score, multi_class="ovo", needs_proba=True),
+            "auc": make_scorer(roc_auc_score, multi_class="ovo", needs_proba=True),
             "accuracy": make_scorer(accuracy_score),
-            "precision": make_scorer(precision_score),
-            "f1": make_scorer(f1_score),
-            "recall": make_scorer(recall_score),
+            "precision": make_scorer(precision_score, average="micro"),
+            "f1": make_scorer(f1_score, average="micro"),
+            "recall": make_scorer(recall_score, average="micro"),
         }
         if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, LogisticRegression)
         else {
@@ -205,8 +205,7 @@ def run_cross_validation(
     """
     scorer = set_scorer(estimator)
     x = subsample.to_df()
-    # taking the first of the two columns
-    y = subsample.obs[[col for col in subsample.obs if col.startswith("y_")][0]]
+    y = subsample.obs["y_"]
     folds = StratifiedKFold(n_splits=folds, random_state=random_state, shuffle=True)
 
     results = cross_validate(
@@ -237,7 +236,7 @@ def run_cross_validation(
         for fold, estimator in list(zip(range(len(results["estimator"])), results["estimator"])):
             feature_importances["genes"].extend(x.columns.tolist())
             feature_importances["feature_importances"].extend(
-                ((estimator.coef_ - estimator.coef_.mean()) / estimator.coef_.std()).flatten().tolist()
+                (estimator.coef_ * estimator.coef_.std()).flatten().tolist()
             )
             feature_importances["subsample_idx"].extend(len(x.columns) * [subsample_idx])
             feature_importances["fold"].extend(len(x.columns) * [fold])
@@ -306,8 +305,17 @@ def predict(
     """
     if augur_mode == "permute" and n_subsamples < 100:
         n_subsamples = 500
-    if (is_regressor(classifier)) and len(adata.obs["label"].unique()) <= 3:
-        print(f"[bold red] regressors cannot be used on {len(adata.obs['label'].unique())} labels. Try a classifier.")
+    if is_regressor(classifier) and len(adata.obs["y_"].unique()) <= 3:
+        raise ValueError(
+            f"[bold red]Regressors cannot be used on {len(adata.obs['label'].unique())} labels. Try a classifier."
+        )
+    if isinstance(classifier, LogisticRegression) and len(adata.obs["y_"].unique()) > 2:
+        raise ValueError(
+            "[Bold red]Logistic regression cannot be used for multiclass classification. "
+            + "[Bold red]Use a random forest classifier or filter labels in load()."
+        )
+    if min_cells is None:
+        min_cells = n_subsamples
     results: dict[Any, Any] = {
         "summary_metrics": {},
         "feature_importances": defaultdict(list),
@@ -316,9 +324,19 @@ def predict(
     adata.obs["augur_score"] = nan
     for cell_type in track(adata.obs["cell_type"].unique(), description="Processing data."):
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
-        if min_cells is not None and len(cell_type_subsample) < min_cells:
+        if len(cell_type_subsample) < min_cells:
             print(
                 f"[bold red]Skipping {cell_type} cell type - {len(cell_type_subsample)} samples is less than min_cells {min_cells}."
+            )
+        elif (
+            cell_type_subsample.obs.groupby(
+                ["cell_type", "label"],
+            ).y_.count()
+            < subsample_size
+        ).any():
+            print(
+                f"[bold red]Skipping {cell_type} cell type - the number of samples for at least one class type is less than "
+                f"subsample size {subsample_size}."
             )
         else:
             results[cell_type] = Parallel(n_jobs=n_threads)(

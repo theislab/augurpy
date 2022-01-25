@@ -4,9 +4,9 @@ from __future__ import annotations
 import pandas as pd
 import scanpy as sc
 from anndata import AnnData
-from click import MissingParameter
 from pandas import DataFrame
 from rich import print
+from sklearn.preprocessing import LabelEncoder
 
 
 def load(
@@ -57,19 +57,14 @@ def load(
         raise ValueError("Less than two unique labels in dataset. At least two are needed for the analysis.")
     # dummie variables for categorical data
     if adata.obs["label"].dtype.name == "category":
-        df_dummies = pd.get_dummies(adata.obs["label"], prefix="y", prefix_sep="_")
-
-        # only pass on the condition and treatment column
-        if len(adata.obs["label"].unique()) > 2:
-            if condition_label is not None and treatment_label is not None:
-                df_dummies = df_dummies[[f"y_{condition_label}", f"y_{treatment_label}"]]
-
-            else:
-                raise MissingParameter(
-                    f"[Bold red]More than two labels in {label_col}. Please specify condition and treatment label."
-                )
-
-        adata.obs = pd.concat([adata.obs, df_dummies], axis=1)
+        # filter samples acording to label
+        if condition_label is not None and treatment_label is not None:
+            print(f"Filtering samples with {condition_label} and {treatment_label} labels.")
+            adata = AnnData.concatenate(
+                adata[adata.obs["label"] == condition_label], adata[adata.obs["label"] == treatment_label]
+            )
+        label_encoder = LabelEncoder()
+        adata.obs["y_"] = label_encoder.fit_transform(adata.obs["label"])
     else:
         y = adata.obs["label"].to_frame()
         y = y.rename(columns={"label": "y_"})
