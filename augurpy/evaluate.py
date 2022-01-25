@@ -236,7 +236,7 @@ def run_cross_validation(
         for fold, estimator in list(zip(range(len(results["estimator"])), results["estimator"])):
             feature_importances["genes"].extend(x.columns.tolist())
             feature_importances["feature_importances"].extend(
-                ((estimator.coef_ - estimator.coef_.mean()) / estimator.coef_.std()).flatten().tolist()
+                (estimator.coef_ * estimator.coef_.std()).flatten().tolist()
             )
             feature_importances["subsample_idx"].extend(len(x.columns) * [subsample_idx])
             feature_importances["fold"].extend(len(x.columns) * [fold])
