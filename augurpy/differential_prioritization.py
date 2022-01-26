@@ -33,17 +33,38 @@ def predict_differential_prioritization(
     Returns:
         Results object containing mean augur scores.
     """
+    # compare cell types available
+    cell_types = (
+        set(augur_results1["summary_metrics"].columns)
+        & set(augur_results2["summary_metrics"].columns)
+        & set(permuted_results1["summary_metrics"].columns)
+        & set(permuted_results2["summary_metrics"].columns)
+    )
     # mean augur scores
     augur_score1 = (
-        augur_results1["summary_metrics"].loc["mean_augur_score"].reset_index().rename(columns={"index": "cell_type"})
+        augur_results1["summary_metrics"]
+        .loc["mean_augur_score", cell_types]
+        .reset_index()
+        .rename(columns={"index": "cell_type"})
     )
     augur_score2 = (
-        augur_results2["summary_metrics"].loc["mean_augur_score"].reset_index().rename(columns={"index": "cell_type"})
+        augur_results2["summary_metrics"]
+        .loc["mean_augur_score", cell_types]
+        .reset_index()
+        .rename(columns={"index": "cell_type"})
     )
 
     # mean permuted scores over cross validation runs
-    permuted_cv_augur1 = permuted_results1["full_results"].groupby(["cell_type", "idx"], as_index=False).mean()
-    permuted_cv_augur2 = permuted_results2["full_results"].groupby(["cell_type", "idx"], as_index=False).mean()
+    permuted_cv_augur1 = (
+        permuted_results1["full_results"][permuted_results1["full_results"]["cell_type"].isin(cell_types)]
+        .groupby(["cell_type", "idx"], as_index=False)
+        .mean()
+    )
+    permuted_cv_augur2 = (
+        permuted_results2["full_results"][permuted_results2["full_results"]["cell_type"].isin(cell_types)]
+        .groupby(["cell_type", "idx"], as_index=False)
+        .mean()
+    )
 
     sampled_permuted_cv_augur1 = []
     sampled_permuted_cv_augur2 = []
