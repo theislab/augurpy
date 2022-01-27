@@ -33,7 +33,7 @@ def predict_differential_prioritization(
     Returns:
         Results object containing mean augur scores.
     """
-    # compare cell types available
+    # compare available cell types
     cell_types = (
         set(augur_results1["summary_metrics"].columns)
         & set(augur_results2["summary_metrics"].columns)
