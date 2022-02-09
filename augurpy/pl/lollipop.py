@@ -1,19 +1,21 @@
 from typing import Union
+
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 
-def lollipop(results: dict, ax: Axes = None, return_figure:bool=False)-> Union[Figure, Axes]:
+def lollipop(results: dict, ax: Axes = None, return_figure: bool = False) -> Union[Figure, Axes]:
     """Plot a lollipop plot of the mean augur values.
-    
-    Args: 
+
+    Args:
         results: results after running `predict()`
         ax: optionally, axes used to draw plot
         return_figure: if `True` returns figure of the plot
-         
-    Returns: 
-        Axes of the plot."""
+
+    Returns:
+        Axes of the plot.
+    """
     if ax is None:
         fig, ax = plt.subplots()
     y_axes_range = range(1, len(results["summary_metrics"].columns) + 1)
@@ -31,7 +33,6 @@ def lollipop(results: dict, ax: Axes = None, return_figure:bool=False)-> Union[F
     # formatting and details
     plt.xlabel("Mean Augur Score")
     plt.ylabel("Cell Type")
-    plt.title("Augur Scores")
     plt.yticks(y_axes_range, results["summary_metrics"].sort_values("mean_augur_score", axis=1).columns)
 
     return fig if return_figure else ax

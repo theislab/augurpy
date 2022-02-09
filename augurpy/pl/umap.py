@@ -1,15 +1,16 @@
-from anndata import AnnData
 import scanpy as sc
+from anndata import AnnData
 
 
-def umap(adata: AnnData)-> AnnData:
+def umap(adata: AnnData) -> AnnData:
     """Plot UMAP representation of anndata with augur_score labeling.
-    
+
     Args:
         adata: AnnData result after running `predict()`
-        
-    Returns: 
-        AnnData object the UMAP is based on."""
+
+    Returns:
+        AnnData object the UMAP is based on.
+    """
     try:
         sc.pl.umap(adata=adata, color="augur_score")
     except KeyError:

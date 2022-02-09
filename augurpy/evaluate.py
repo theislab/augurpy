@@ -71,6 +71,39 @@ def cross_validate_subsample(
     return results
 
 
+def sample(adata: AnnData, categorical: bool, subsample_size: int, random_state: int, features: list):
+    """Sample anndata observations.
+
+    Args:
+        adata: Anndata with obs `label` and `cell_type` for label and cell type and dummie variable `y_` columns used as target
+        categorical: `True` if target values are categorical
+        subsample_size: number of cells to subsample randomly per type from each experimental condition
+        random_state: set numpy random seed and sampling seed
+        features: features returned Anndata object
+
+    Returns:
+        Subsample of anndata object of size subsample_size with given features
+    """
+    # export subsampleing.
+    random.seed(random_state)
+    if categorical:
+        label_subsamples = []
+        y_encodings = adata.obs["y_"].unique()
+        for code in y_encodings:
+            label_subsamples.append(
+                sc.pp.subsample(
+                    adata[adata.obs["y_"] == code, features],
+                    n_obs=subsample_size,
+                    copy=True,
+                    random_state=random_state,
+                )
+            )
+        subsample = AnnData.concatenate(*label_subsamples, index_unique=None)
+    else:
+        subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True, random_state=random_state)
+    return subsample
+
+
 def draw_subsample(
     adata: AnnData,
     augur_mode: str,
@@ -88,13 +121,14 @@ def draw_subsample(
             while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
             permuting the labels
         subsample_size: number of cells to subsample randomly per type from each experimental condition
-        categorical_data: if `True` subsamples are
+        categorical_data: `True` if target values are categorical
         random_state: set numpy random seed and sampling seed
 
     Returns:
         Subsample of anndata object of size subsample_size
     """
-    if augur_mode == "permut":
+    random.seed(random_state)
+    if augur_mode == "permute":
         # shuffle labels
         adata = adata.copy()
         y_columns = [col for col in adata.obs if col.startswith("y_")]
@@ -102,30 +136,21 @@ def draw_subsample(
 
     if augur_mode == "velocity":
         # no feature selection, assuming this has already happenend in calculating velocity
-        subsample = sc.pp.subsample(adata, n_obs=subsample_size, copy=True, random_state=random_state)
-        return subsample
+        features = adata.var_names
 
-    # randomly sample features from highly variable genes
-    random.seed(random_state)
-    highly_variable_genes = adata.var_names[adata.var["highly_variable"]].tolist()
-    features = random.sample(highly_variable_genes, floor(len(highly_variable_genes) * feature_perc))
-    # randomly sample samples for each label
-    if categorical:
-        label_subsamples = []
-        y_encodings = adata.obs["y_"].unique()
-        for code in y_encodings:
-            label_subsamples.append(
-                sc.pp.subsample(
-                    adata[adata.obs["y_"] == code, features],
-                    n_obs=subsample_size,
-                    copy=True,
-                    random_state=random_state,
-                )
-            )
-        subsample = AnnData.concatenate(*label_subsamples, index_unique=None)
     else:
-        subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True, random_state=random_state)
-    return subsample
+        # randomly sample features from highly variable genes
+        highly_variable_genes = adata.var_names[adata.var["highly_variable"]].tolist()
+        features = random.sample(highly_variable_genes, floor(len(highly_variable_genes) * feature_perc))
+
+    # randomly sample samples for each label
+    return sample(
+        adata=adata,
+        categorical=categorical,
+        subsample_size=subsample_size,
+        random_state=random_state,
+        features=features,
+    )
 
 
 def ccc_score(y_true, y_pred) -> float:
@@ -155,23 +180,34 @@ def ccc_score(y_true, y_pred) -> float:
 
 def set_scorer(
     estimator: RandomForestRegressor | RandomForestClassifier | LogisticRegression,
+    multiclass: bool,
 ) -> dict[str, Any]:
     """Set scoring fuctions for cross-validation based on estimator.
 
     Args:
         estimator: classifier object used to fit the model used to calculate the area under the curve
+        multiclass: `True` if there are more than two target classes
 
     Returns:
         Dict linking name to scorer object and string name
     """
+    if multiclass:
+        return {
+            "augur_score": make_scorer(roc_auc_score, multi_class="ovr", needs_proba=True),
+            "auc": make_scorer(roc_auc_score, multi_class="ovr", needs_proba=True),
+            "accuracy": make_scorer(accuracy_score),
+            "precision": make_scorer(precision_score, average="macro"),
+            "f1": make_scorer(f1_score, average="macro"),
+            "recall": make_scorer(recall_score, average="macro"),
+        }
     return (
         {
-            "augur_score": make_scorer(roc_auc_score, multi_class="ovo", needs_proba=True),
-            "auc": make_scorer(roc_auc_score, multi_class="ovo", needs_proba=True),
+            "augur_score": make_scorer(roc_auc_score, needs_proba=True),
+            "auc": make_scorer(roc_auc_score, needs_proba=True),
             "accuracy": make_scorer(accuracy_score),
-            "precision": make_scorer(precision_score, average="micro"),
-            "f1": make_scorer(f1_score, average="micro"),
-            "recall": make_scorer(recall_score, average="micro"),
+            "precision": make_scorer(precision_score, average="binary"),
+            "f1": make_scorer(f1_score, average="binary"),
+            "recall": make_scorer(recall_score, average="binary"),
         }
         if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, LogisticRegression)
         else {
@@ -203,9 +239,9 @@ def run_cross_validation(
     Returns:
         Dictionary containing prediction metrics and estimator for each fold.
     """
-    scorer = set_scorer(estimator)
     x = subsample.to_df()
     y = subsample.obs["y_"]
+    scorer = set_scorer(estimator, multiclass=True if len(y.unique()) > 2 else False)
     folds = StratifiedKFold(n_splits=folds, random_state=random_state, shuffle=True)
 
     results = cross_validate(
@@ -262,6 +298,28 @@ def average_metrics(cell_cv_results: list[Any]) -> dict[Any, Any]:
             metric_list[metric] = metric_list.get(metric, []) + [subsample_cv_result[metric]]
 
     return {metric: np.mean(values) for metric, values in metric_list.items()}
+
+
+def feature_selection(adata: AnnData) -> AnnData:
+    """Feature selection by variance using scanpy highly variable genes function.
+
+    Args:
+        adata: Anndata object containing gene expression values (cells in rows, genes in columns)
+
+    Results:
+        Anndata object with highly variable genes added as layer
+    """
+    min_features_for_selection = 1000
+
+    if len(adata.var_names) - 2 > min_features_for_selection:
+        try:
+            sc.pp.highly_variable_genes(adata)
+        except ValueError:
+            print("[bold yellow]Data not normalized. Normalizing now using scanpy log1p normalize.")
+            sc.pp.log1p(adata)
+            sc.pp.highly_variable_genes(adata)
+
+    return adata
 
 
 def predict(
@@ -324,6 +382,8 @@ def predict(
     adata.obs["augur_score"] = nan
     for cell_type in track(adata.obs["cell_type"].unique(), description="Processing data."):
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
+        if augur_mode == "default" or augur_mode == "permute":
+            cell_type_subsample = feature_selection(cell_type_subsample)
         if len(cell_type_subsample) < min_cells:
             print(
                 f"[bold red]Skipping {cell_type} cell type - {len(cell_type_subsample)} samples is less than min_cells {min_cells}."

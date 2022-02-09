@@ -5,7 +5,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 
-def important_features(results: dict, top_n = 10, ax: Axes = None, return_figure: bool = False) -> Union[Figure, Axes]:
+def important_features(results: dict, top_n=10, ax: Axes = None, return_figure: bool = False) -> Union[Figure, Axes]:
     """Plot a lollipop plot of the n features with largest feature importances.
 
     Args:
@@ -18,26 +18,28 @@ def important_features(results: dict, top_n = 10, ax: Axes = None, return_figure
         Axes of the plot.
     """
     # top_n features to plot
-    n_features = results['feature_importances'].groupby('genes', as_index=False).feature_importances.mean().sort_values(by='feature_importances')[-top_n:]
-    
+    n_features = (
+        results["feature_importances"]
+        .groupby("genes", as_index=False)
+        .feature_importances.mean()
+        .sort_values(by="feature_importances")[-top_n:]
+    )
+
     if ax is None:
         fig, ax = plt.subplots()
     y_axes_range = range(1, top_n + 1)
     ax.hlines(
         y_axes_range,
         xmin=0,
-        xmax=n_features['feature_importances'],
+        xmax=n_features["feature_importances"],
     )
 
     # drawing the markers (circle)
-    ax.plot(
-        n_features['feature_importances'], y_axes_range, "o"
-    )
+    ax.plot(n_features["feature_importances"], y_axes_range, "o")
 
     # formatting and details
     plt.xlabel("Mean Feature Importance")
     plt.ylabel("Gene")
-    plt.title(f"Top {top_n} Genes")
-    plt.yticks(y_axes_range, n_features['genes'])
+    plt.yticks(y_axes_range, n_features["genes"])
 
     return fig if return_figure else ax
