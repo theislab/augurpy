@@ -28,6 +28,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from sklearn.model_selection import StratifiedKFold, cross_validate
+from skmisc.loess import loess
 
 
 def cross_validate_subsample(
@@ -318,6 +319,58 @@ def feature_selection(adata: AnnData) -> AnnData:
             print("[bold yellow]Data not normalized. Normalizing now using scanpy log1p normalize.")
             sc.pp.log1p(adata)
             sc.pp.highly_variable_genes(adata)
+
+    return adata
+
+
+def select_variance(adata: AnnData, var_quantile: float = 0.5):
+    """Feature selection based on Augur implementation.
+
+    Args:
+        adata: Anndata object
+        var_quantile: the quantile below which features will be filtered, based on their residuals in a loess model;
+             defaults to `0.5`
+
+    Return:
+        AnnData object with additional select_variance column in var.
+    """
+    adata.var["highly_variable"] = False
+    adata.var["means"] = np.ravel(adata.X.mean(axis=0))
+    adata.var["sds"] = np.ravel(np.sqrt(adata.X.power(2).mean(axis=0) - np.power(adata.X.mean(axis=0), 2)))
+    # keep all features that do not have constant variance
+    adata.var.loc[adata.var["sds"] > 0, "highly_variable"] = True
+    cvs = adata.var.loc[adata.var["highly_variable"], "means"] / adata.var.loc[adata.var["highly_variable"], "sds"]
+
+    # here there are slight value differences after the 2 decimal point compared to R
+    lower = np.quantile(cvs, 0.01)
+    upper = np.quantile(cvs, 0.99)
+    keep = cvs.loc[cvs.between(lower, upper)].index
+
+    cv0 = cvs.loc[keep]
+    mean0 = adata.var.loc[keep, "means"]
+
+    if any(mean0 < 0):
+        model = loess(mean0, cv0)
+
+    else:
+        fit1 = loess(mean0, cv0)
+        # fit2 = loess(np.log(mean0), cv0)
+
+        # missing a cox test to see which fit is better/ more probable.
+        # cox = compare_cox(fit1, fit2)
+        #     probs = cox$`Pr(>|z|)`
+        #   if (probs[1] < probs[2]) {
+        #     model = fit1
+        #   } else {
+        #     model = fit2
+        #   }
+
+        # just for testing purposes set to 1
+        model = fit1
+    residuals = model.outputs.fitted_residuals
+    genes = keep[residuals > np.quantile(residuals, var_quantile)]
+
+    adata.var["highly_variable"] = [x in genes for x in adata.var.index]
 
     return adata
 
