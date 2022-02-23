@@ -323,13 +323,15 @@ def feature_selection(adata: AnnData) -> AnnData:
     return adata
 
 
-def select_variance(adata: AnnData, var_quantile: float = 0.5):
+def select_variance(adata: AnnData, var_quantile: float, span: float):
     """Feature selection based on Augur implementation.
 
     Args:
         adata: Anndata object
         var_quantile: the quantile below which features will be filtered, based on their residuals in a loess model;
-             defaults to `0.5`
+            defaults to `0.5`
+        span: Smoothing factor, as a fraction of the number of points to take into account. Should be in the range
+            (0, 1]. Default is 0.75
 
     Return:
         AnnData object with additional select_variance column in var.
@@ -337,7 +339,7 @@ def select_variance(adata: AnnData, var_quantile: float = 0.5):
     adata.var["highly_variable"] = False
     adata.var["means"] = np.ravel(adata.X.mean(axis=0))
     adata.var["sds"] = np.ravel(np.sqrt(adata.X.power(2).mean(axis=0) - np.power(adata.X.mean(axis=0), 2)))
-    # keep all features that do not have constant variance
+    # remove all features with 0 variance
     adata.var.loc[adata.var["sds"] > 0, "highly_variable"] = True
     cvs = adata.var.loc[adata.var["highly_variable"], "means"] / adata.var.loc[adata.var["highly_variable"], "sds"]
 
@@ -349,12 +351,13 @@ def select_variance(adata: AnnData, var_quantile: float = 0.5):
     cv0 = cvs.loc[keep]
     mean0 = adata.var.loc[keep, "means"]
 
+    print("[bold yellow]Set smaller span value in the case of a `segmentation fault` error.")
     if any(mean0 < 0):
-        model = loess(mean0, cv0)
+        model = loess(mean0, cv0, span=span)
 
     else:
-        fit1 = loess(mean0, cv0)
-        # fit2 = loess(np.log(mean0), cv0)
+        fit1 = loess(mean0, cv0, span=span)
+        # fit2 = loess(np.log(mean0), cv0, span = span)
 
         # missing a cox test to see which fit is better/ more probable.
         # cox = compare_cox(fit1, fit2)
@@ -367,6 +370,7 @@ def select_variance(adata: AnnData, var_quantile: float = 0.5):
 
         # just for testing purposes set to 1
         model = fit1
+    model.fit()
     residuals = model.outputs.fitted_residuals
     genes = keep[residuals > np.quantile(residuals, var_quantile)]
 
@@ -383,6 +387,8 @@ def predict(
     folds: int = 3,
     min_cells: int = None,
     feature_perc: float = 0.5,
+    var_quantile: float = 0.5,
+    span: float = 0.75,
     n_threads: int = 4,
     show_progress: bool = True,
     augur_mode: Literal["permute"] | Literal["default"] | Literal["velocity"] = "default",
@@ -401,6 +407,10 @@ def predict(
             analysis (depricated..)
         feature_perc: proportion of genes that are randomly selected as features for input to the classifier in each
             subsample using the random gene filter
+        var_quantile: the quantile below which features will be filtered, based on their residuals in a loess model;
+            defaults to `0.5`
+        span: Smoothing factor, as a fraction of the number of points to take into account. Should be in the range
+            (0, 1]. Default is 0.75
         n_threads: number of threads to use for parallelization
         show_progress: if `True` display a progress bar for the analysis with estimated time remaining
         augur_mode: one of default, velocity or permute. Setting augur_mode = "velocity" disables feature selection,

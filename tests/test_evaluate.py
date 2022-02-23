@@ -6,7 +6,7 @@ import pytest
 import scanpy as sc
 
 from augurpy.estimator import Params, create_estimator
-from augurpy.evaluate import draw_subsample, predict, run_cross_validation
+from augurpy.evaluate import draw_subsample, predict, run_cross_validation, select_variance
 from augurpy.read_load import load
 
 CWD = Path(__file__).parent.resolve()
@@ -105,3 +105,10 @@ def test_multiclass():
         len(set(bhattacher_results["summary_metrics"]["Astro"]))
         == len(bhattacher_results["summary_metrics"]["Astro"]) - 1
     )
+
+
+def test_select_variance():
+    """Test select variance implementation."""
+    adata = bhattacher_adata[bhattacher_adata.obs["cell_type"] == "Astro"]
+    ad = select_variance(adata, var_quantile=0.5, span=0.6)
+    assert 7172 == len(ad.var.index[ad.var["highly_variable"]])
