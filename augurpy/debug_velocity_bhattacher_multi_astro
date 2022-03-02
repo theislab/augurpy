@@ -1,0 +1,28 @@
+## Testing Velocity Bhattacher with debugger. 
+
+import scanpy as sc
+from augurpy.estimator import Params, create_estimator
+from augurpy.evaluate import predict, run_cross_validation, draw_subsample
+from augurpy.read_load import load
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import roc_auc_score, roc_curve, plot_roc_curve
+import pandas as pd
+import os
+
+print(os.getcwd())
+
+
+bhattacher_adata = sc.read_h5ad("/Users/tonia/Projects/helmholtz/augurpy/data/bhattacher.h5ad")
+adata = load(bhattacher_adata)
+sc.pp.log1p(adata)
+
+# estimators
+rf_classifier = create_estimator("random_forest_classifier")
+
+cell_type = "Astro"
+c_adata = adata[adata.obs['cell_type']==cell_type]
+sc.pp.highly_variable_genes(c_adata)
+
+a, results = predict(c_adata[:,c_adata.var['highly_variable']], n_threads=1, classifier=rf_classifier, random_state=None, augur_mode='velocity')
+print(results['summary_metrics'].loc['mean_augur_score'].values)
+# original value: 0.73767952 

@@ -1,6 +1,7 @@
 """Calculates augur score for given dataset and estimator."""
 from __future__ import annotations
 
+import csv
 import random
 from collections import defaultdict
 from math import floor, nan
@@ -85,7 +86,7 @@ def sample(adata: AnnData, categorical: bool, subsample_size: int, random_state:
     Returns:
         Subsample of anndata object of size subsample_size with given features
     """
-    # export subsampleing.
+    # export subsampling.
     random.seed(random_state)
     if categorical:
         label_subsamples = []
@@ -194,8 +195,8 @@ def set_scorer(
     """
     if multiclass:
         return {
-            "augur_score": make_scorer(roc_auc_score, multi_class="ovr", needs_proba=True),
-            "auc": make_scorer(roc_auc_score, multi_class="ovr", needs_proba=True),
+            "augur_score": make_scorer(roc_auc_score, multi_class="ovo", needs_proba=True),
+            "auc": make_scorer(roc_auc_score, multi_class="ovo", needs_proba=True),
             "accuracy": make_scorer(accuracy_score),
             "precision": make_scorer(precision_score, average="macro"),
             "f1": make_scorer(f1_score, average="macro"),
@@ -320,6 +321,22 @@ def feature_selection(adata: AnnData) -> AnnData:
             sc.pp.log1p(adata)
             sc.pp.highly_variable_genes(adata)
 
+    return adata
+
+
+def r_feature_selection(adata: AnnData) -> AnnData:
+    cell_type = adata.obs["cell_type"][0]
+    data = "kang"  ### change here.
+    dir = f"../../RStudio/hv_{data}/{cell_type}_kang_select_variance.csv"
+
+    with open(dir) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=",")
+        line_count = 0
+        genes = []
+        for row in csv_reader:
+            genes.append(row[1])
+
+    adata.var["highly_variable"] = [g in genes for g in adata.var.index]
     return adata
 
 
