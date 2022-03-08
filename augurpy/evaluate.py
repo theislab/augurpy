@@ -1,7 +1,6 @@
 """Calculates augur score for given dataset and estimator."""
 from __future__ import annotations
 
-import csv
 import random
 from collections import defaultdict
 from math import floor, nan
@@ -10,10 +9,12 @@ from typing import Any, Literal, Optional
 import numpy as np
 import pandas as pd
 import scanpy as sc
+import statsmodels.api as sm
 from anndata import AnnData
 from joblib import Parallel, delayed
 from pandas import DataFrame
 from rich.progress import track
+from scipy import stats
 from sklearn.base import is_classifier, is_regressor
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
@@ -103,7 +104,15 @@ def sample(adata: AnnData, categorical: bool, subsample_size: int, random_state:
         subsample = AnnData.concatenate(*label_subsamples, index_unique=None)
     else:
         subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True, random_state=random_state)
-    return subsample
+
+    # filter features with 0 variance
+    subsample.var["highly_variable"] = False
+    subsample.var["means"] = np.ravel(subsample.X.mean(axis=0))
+    subsample.var["var"] = np.ravel(subsample.X.power(2).mean(axis=0) - np.power(subsample.X.mean(axis=0), 2))
+    # remove all features with 0 variance
+    subsample.var.loc[subsample.var["var"] > 0, "highly_variable"] = True
+
+    return subsample[:, subsample.var["highly_variable"]]
 
 
 def draw_subsample(
@@ -324,29 +333,52 @@ def feature_selection(adata: AnnData) -> AnnData:
     return adata
 
 
-def r_feature_selection(adata: AnnData) -> AnnData:
-    cell_type = adata.obs["cell_type"][0]
-    data = "kang"  ### change here.
-    dir = f"../../RStudio/hv_{data}/{cell_type}_kang_select_variance.csv"
+def cox_compare(loess1, loess2):
+    """Cox compare test on two models.
 
-    with open(dir) as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter=",")
-        line_count = 0
-        genes = []
-        for row in csv_reader:
-            genes.append(row[1])
+    Info: Tests of non-nested hypothesis might not provide unambiguous answers.
+    The test should be performed in both directions and it is possible
+    that both or neither test rejects.
 
-    adata.var["highly_variable"] = [g in genes for g in adata.var.index]
-    return adata
+    Args:
+        loess1: fitted loess regression object
+        loess2: fitted loess regression object
+
+    Returns:
+        t-statistic for the test that including the fitted values of the first model in the second model
+        has no effect and two-sided pvalue for the t-statistic
+    """
+    x = loess1.inputs.x
+    z = loess2.inputs.x
+
+    nobs = loess1.inputs.y.shape[0]
+
+    # coxtest
+    sigma2_x = np.sum(np.power(loess1.outputs.fitted_residuals, 2)) / nobs
+    sigma2_z = np.sum(np.power(loess2.outputs.fitted_residuals, 2)) / nobs
+    yhat_x = loess1.outputs.fitted_values
+    res_dx = sm.OLS(yhat_x, z).fit()
+    err_zx = res_dx.resid
+    res_xzx = sm.OLS(err_zx, x).fit()
+    err_xzx = res_xzx.resid
+
+    sigma2_zx = sigma2_x + np.dot(err_zx.T, err_zx) / nobs
+    c01 = nobs / 2.0 * (np.log(sigma2_z) - np.log(sigma2_zx))
+    v01 = sigma2_x * np.dot(err_xzx.T, err_xzx) / sigma2_zx ** 2
+    q = c01 / np.sqrt(v01)
+    pval = 2 * stats.norm.sf(np.abs(q))
+
+    return q, pval
 
 
-def select_variance(adata: AnnData, var_quantile: float, span: float):
+def select_variance(adata: AnnData, var_quantile: float, filter_negative_residuals: bool, span: float):
     """Feature selection based on Augur implementation.
 
     Args:
         adata: Anndata object
         var_quantile: the quantile below which features will be filtered, based on their residuals in a loess model;
             defaults to `0.5`
+        filter_negative_residuals: if `True`, filter residuals at a fixed threshold of zero, instead of `var_quantile`
         span: Smoothing factor, as a fraction of the number of points to take into account. Should be in the range
             (0, 1]. Default is 0.75
 
@@ -360,7 +392,7 @@ def select_variance(adata: AnnData, var_quantile: float, span: float):
     adata.var.loc[adata.var["sds"] > 0, "highly_variable"] = True
     cvs = adata.var.loc[adata.var["highly_variable"], "means"] / adata.var.loc[adata.var["highly_variable"], "sds"]
 
-    # here there are slight value differences after the 2 decimal point compared to R
+    # clip outliers, get best prediction model, get residuals
     lower = np.quantile(cvs, 0.01)
     upper = np.quantile(cvs, 0.99)
     keep = cvs.loc[cvs.between(lower, upper)].index
@@ -370,26 +402,30 @@ def select_variance(adata: AnnData, var_quantile: float, span: float):
 
     print("[bold yellow]Set smaller span value in the case of a `segmentation fault` error.")
     if any(mean0 < 0):
+        # if there are negative values, don't bother comparing to log-transformed
+        # means - fit on normalized data directly
         model = loess(mean0, cv0, span=span)
 
     else:
         fit1 = loess(mean0, cv0, span=span)
-        # fit2 = loess(np.log(mean0), cv0, span = span)
+        fit2 = loess(np.log(mean0), cv0, span=span)
 
-        # missing a cox test to see which fit is better/ more probable.
-        # cox = compare_cox(fit1, fit2)
-        #     probs = cox$`Pr(>|z|)`
-        #   if (probs[1] < probs[2]) {
-        #     model = fit1
-        #   } else {
-        #     model = fit2
-        #   }
+        # use a cox test to guess whether we should be fitting the raw or
+        # log-transformed means
+        cox1 = cox_compare(fit1, fit2)
+        cox2 = cox_compare(fit2, fit1)
 
-        # just for testing purposes set to 1
-        model = fit1
+        #  compare pvalues
+        if cox1[1] < cox2[1]:
+            model = fit1
+        else:
+            model = fit2
+
     model.fit()
     residuals = model.outputs.fitted_residuals
-    genes = keep[residuals > np.quantile(residuals, var_quantile)]
+
+    # select features by quantile (or override w/positive residuals)
+    genes = keep[residuals > 0] if filter_negative_residuals else keep[residuals > np.quantile(residuals, var_quantile)]
 
     adata.var["highly_variable"] = [x in genes for x in adata.var.index]
 
@@ -406,9 +442,11 @@ def predict(
     feature_perc: float = 0.5,
     var_quantile: float = 0.5,
     span: float = 0.75,
+    filter_negative_residuals: bool = False,
     n_threads: int = 4,
     show_progress: bool = True,
     augur_mode: Literal["permute"] | Literal["default"] | Literal["velocity"] = "default",
+    select_variance_features: bool = False,
     random_state: int | None = None,
 ) -> tuple[AnnData, dict[str, Any]]:
     """Calculates the Area under the Curve using the given classifier.
@@ -428,6 +466,7 @@ def predict(
             defaults to `0.5`
         span: Smoothing factor, as a fraction of the number of points to take into account. Should be in the range
             (0, 1]. Default is 0.75
+        filter_negative_residuals: if `True`, filter residuals at a fixed threshold of zero, instead of `var_quantile`
         n_threads: number of threads to use for parallelization
         show_progress: if `True` display a progress bar for the analysis with estimated time remaining
         augur_mode: one of default, velocity or permute. Setting augur_mode = "velocity" disables feature selection,
@@ -463,7 +502,16 @@ def predict(
     for cell_type in track(adata.obs["cell_type"].unique(), description="Processing data."):
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
         if augur_mode == "default" or augur_mode == "permute":
-            cell_type_subsample = feature_selection(cell_type_subsample)
+            cell_type_subsample = (
+                feature_selection(cell_type_subsample)
+                if not select_variance_features
+                else select_variance(
+                    cell_type_subsample,
+                    var_quantile=var_quantile,
+                    filter_negative_residuals=filter_negative_residuals,
+                    span=span,
+                )
+            )
         if len(cell_type_subsample) < min_cells:
             print(
                 f"[bold red]Skipping {cell_type} cell type - {len(cell_type_subsample)} samples is less than min_cells {min_cells}."

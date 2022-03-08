@@ -29,7 +29,7 @@ def test_random_forest_classifier():
     adata, results = predict(sc_sim_adata, n_threads=4, n_subsamples=3, classifier=rf_classifier, random_state=42)
     assert results["CellTypeA"][2]["subsample_idx"] == 2
     assert "augur_score" in adata.obs.columns
-    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.534391, 0.796296, 0.886999])
+    assert np.allclose(results["summary_metrics"].loc["mean_augur_score"].tolist(), [0.521730, 0.783635, 0.868858])
     assert "feature_importances" in results.keys()
     assert len(set(results["summary_metrics"]["CellTypeA"])) == len(results["summary_metrics"]["CellTypeA"]) - 1
 
@@ -90,7 +90,7 @@ def test_subsample(adata=sc_sim_adata):
     velocity_subsample = draw_subsample(
         adata=adata, augur_mode="velocity", subsample_size=20, feature_perc=0.3, categorical=True, random_state=42
     )
-    assert len(velocity_subsample.var_names) == len(adata.var_names) and len(velocity_subsample.obs_names) == 40
+    assert len(velocity_subsample.var_names) == 5908 and len(velocity_subsample.obs_names) == 40
 
 
 def test_multiclass():
@@ -110,5 +110,5 @@ def test_multiclass():
 def test_select_variance():
     """Test select variance implementation."""
     adata = bhattacher_adata[bhattacher_adata.obs["cell_type"] == "Astro"]
-    ad = select_variance(adata, var_quantile=0.5, span=0.6)
-    assert 7172 == len(ad.var.index[ad.var["highly_variable"]])
+    ad = select_variance(adata, var_quantile=0.5, span=0.6, filter_negative_residuals=False)
+    assert 7122 == len(ad.var.index[ad.var["highly_variable"]])
