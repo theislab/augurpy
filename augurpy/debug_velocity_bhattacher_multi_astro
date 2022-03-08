@@ -1,4 +1,4 @@
-## Testing Velocity Bhattacher with debugger. 
+## Testing Velocity Bhattacher with debugger.
 
 import scanpy as sc
 from augurpy.estimator import Params, create_estimator
@@ -24,5 +24,13 @@ c_adata = adata[adata.obs['cell_type']==cell_type]
 sc.pp.highly_variable_genes(c_adata)
 
 a, results = predict(c_adata[:,c_adata.var['highly_variable']], n_threads=1, classifier=rf_classifier, random_state=None, augur_mode='velocity')
+# Input: 1780 genes.
+# running it with 1 subsample => 0.69897959
+
 print(results['summary_metrics'].loc['mean_augur_score'].values)
-# original value: 0.73767952 
+# original value: 0.73767952
+# w/ var extraction 0.75609221
+
+# the indices are the same! just zip number and value (1+) and then get the idices I should pass to R to have the same subsample.
+#[adata.obs.index
+# run this through.
