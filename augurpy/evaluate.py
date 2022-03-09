@@ -5,6 +5,7 @@ import random
 from collections import defaultdict
 from math import floor, nan
 from typing import Any, Literal, Optional
+from rich import print
 
 import numpy as np
 import pandas as pd
