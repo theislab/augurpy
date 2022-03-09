@@ -408,7 +408,9 @@ def select_variance(adata: AnnData, var_quantile: float, filter_negative_residua
 
     else:
         fit1 = loess(mean0, cv0, span=span)
+        fit1.fit()
         fit2 = loess(np.log(mean0), cv0, span=span)
+        fit2.fit()
 
         # use a cox test to guess whether we should be fitting the raw or
         # log-transformed means
@@ -421,7 +423,6 @@ def select_variance(adata: AnnData, var_quantile: float, filter_negative_residua
         else:
             model = fit2
 
-    model.fit()
     residuals = model.outputs.fitted_residuals
 
     # select features by quantile (or override w/positive residuals)
