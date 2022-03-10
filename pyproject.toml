@@ -29,6 +29,7 @@ scikit-learn = ">=1.0.1"
 switchlang = ">=0.1.0"
 scanpy = "^1.8.2"
 scikit-misc = "^0.1.4"
+statsmodels = "^0.13.2"
 
 [tool.poetry.dev-dependencies]
 pytest = ">=6.2.3"
