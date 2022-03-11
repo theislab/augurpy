@@ -5,7 +5,6 @@ import random
 from collections import defaultdict
 from math import floor, nan
 from typing import Any, Literal, Optional
-from rich import print
 
 import numpy as np
 import pandas as pd
@@ -14,6 +13,7 @@ import statsmodels.api as sm
 from anndata import AnnData
 from joblib import Parallel, delayed
 from pandas import DataFrame
+from rich import print
 from rich.progress import track
 from scipy import stats
 from sklearn.base import is_classifier, is_regressor
@@ -403,6 +403,7 @@ def select_variance(adata: AnnData, var_quantile: float, filter_negative_residua
     mean0 = adata.var.loc[keep, "means"]
 
     print("[bold yellow]Set smaller span value in the case of a `segmentation fault` error.")
+    print("[bold yellow]Set larger span in case of svddc or other near singularities error.")
     if any(mean0 < 0):
         # if there are negative values, don't bother comparing to log-transformed
         # means - fit on normalized data directly
