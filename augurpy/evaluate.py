@@ -312,7 +312,7 @@ def average_metrics(cell_cv_results: list[Any]) -> dict[Any, Any]:
     return {metric: np.mean(values) for metric, values in metric_list.items()}
 
 
-def feature_selection(adata: AnnData) -> AnnData:
+def select_highly_variable(adata: AnnData) -> AnnData:
     """Feature selection by variance using scanpy highly variable genes function.
 
     Args:
@@ -337,6 +337,7 @@ def feature_selection(adata: AnnData) -> AnnData:
 def cox_compare(loess1, loess2):
     """Cox compare test on two models.
 
+    Based on: https://www.statsmodels.org/dev/generated/statsmodels.stats.diagnostic.compare_cox.html
     Info: Tests of non-nested hypothesis might not provide unambiguous answers.
     The test should be performed in both directions and it is possible
     that both or neither test rejects.
@@ -505,7 +506,7 @@ def predict(
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
         if augur_mode == "default" or augur_mode == "permute":
             cell_type_subsample = (
-                feature_selection(cell_type_subsample)
+                select_highly_variable(cell_type_subsample)
                 if not select_variance_features
                 else select_variance(
                     cell_type_subsample,
