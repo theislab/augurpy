@@ -9,10 +9,13 @@ from typing import Any, Literal, Optional
 import numpy as np
 import pandas as pd
 import scanpy as sc
+import statsmodels.api as sm
 from anndata import AnnData
 from joblib import Parallel, delayed
 from pandas import DataFrame
+from rich import print
 from rich.progress import track
+from scipy import stats
 from sklearn.base import is_classifier, is_regressor
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
@@ -28,6 +31,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from sklearn.model_selection import StratifiedKFold, cross_validate
+from skmisc.loess import loess
 
 
 def cross_validate_subsample(
@@ -71,6 +75,47 @@ def cross_validate_subsample(
     return results
 
 
+def sample(adata: AnnData, categorical: bool, subsample_size: int, random_state: int, features: list):
+    """Sample anndata observations.
+
+    Args:
+        adata: Anndata with obs `label` and `cell_type` for label and cell type and dummie variable `y_` columns used as target
+        categorical: `True` if target values are categorical
+        subsample_size: number of cells to subsample randomly per type from each experimental condition
+        random_state: set numpy random seed and sampling seed
+        features: features returned Anndata object
+
+    Returns:
+        Subsample of anndata object of size subsample_size with given features
+    """
+    # export subsampling.
+    random.seed(random_state)
+    if categorical:
+        label_subsamples = []
+        y_encodings = adata.obs["y_"].unique()
+        for code in y_encodings:
+            label_subsamples.append(
+                sc.pp.subsample(
+                    adata[adata.obs["y_"] == code, features],
+                    n_obs=subsample_size,
+                    copy=True,
+                    random_state=random_state,
+                )
+            )
+        subsample = AnnData.concatenate(*label_subsamples, index_unique=None)
+    else:
+        subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True, random_state=random_state)
+
+    # filter features with 0 variance
+    subsample.var["highly_variable"] = False
+    subsample.var["means"] = np.ravel(subsample.X.mean(axis=0))
+    subsample.var["var"] = np.ravel(subsample.X.power(2).mean(axis=0) - np.power(subsample.X.mean(axis=0), 2))
+    # remove all features with 0 variance
+    subsample.var.loc[subsample.var["var"] > 0, "highly_variable"] = True
+
+    return subsample[:, subsample.var["highly_variable"]]
+
+
 def draw_subsample(
     adata: AnnData,
     augur_mode: str,
@@ -88,13 +133,14 @@ def draw_subsample(
             while setting augur_mode = "permute" will generate a null distribution of AUCs for each cell type by
             permuting the labels
         subsample_size: number of cells to subsample randomly per type from each experimental condition
-        categorical_data: if `True` subsamples are
+        categorical_data: `True` if target values are categorical
         random_state: set numpy random seed and sampling seed
 
     Returns:
         Subsample of anndata object of size subsample_size
     """
-    if augur_mode == "permut":
+    random.seed(random_state)
+    if augur_mode == "permute":
         # shuffle labels
         adata = adata.copy()
         y_columns = [col for col in adata.obs if col.startswith("y_")]
@@ -102,30 +148,21 @@ def draw_subsample(
 
     if augur_mode == "velocity":
         # no feature selection, assuming this has already happenend in calculating velocity
-        subsample = sc.pp.subsample(adata, n_obs=subsample_size, copy=True, random_state=random_state)
-        return subsample
+        features = adata.var_names
 
-    # randomly sample features from highly variable genes
-    random.seed(random_state)
-    highly_variable_genes = adata.var_names[adata.var["highly_variable"]].tolist()
-    features = random.sample(highly_variable_genes, floor(len(highly_variable_genes) * feature_perc))
-    # randomly sample samples for each label
-    if categorical:
-        label_subsamples = []
-        y_encodings = adata.obs["y_"].unique()
-        for code in y_encodings:
-            label_subsamples.append(
-                sc.pp.subsample(
-                    adata[adata.obs["y_"] == code, features],
-                    n_obs=subsample_size,
-                    copy=True,
-                    random_state=random_state,
-                )
-            )
-        subsample = AnnData.concatenate(*label_subsamples, index_unique=None)
     else:
-        subsample = sc.pp.subsample(adata[:, features], n_obs=subsample_size, copy=True, random_state=random_state)
-    return subsample
+        # randomly sample features from highly variable genes
+        highly_variable_genes = adata.var_names[adata.var["highly_variable"]].tolist()
+        features = random.sample(highly_variable_genes, floor(len(highly_variable_genes) * feature_perc))
+
+    # randomly sample samples for each label
+    return sample(
+        adata=adata,
+        categorical=categorical,
+        subsample_size=subsample_size,
+        random_state=random_state,
+        features=features,
+    )
 
 
 def ccc_score(y_true, y_pred) -> float:
@@ -155,23 +192,34 @@ def ccc_score(y_true, y_pred) -> float:
 
 def set_scorer(
     estimator: RandomForestRegressor | RandomForestClassifier | LogisticRegression,
+    multiclass: bool,
 ) -> dict[str, Any]:
     """Set scoring fuctions for cross-validation based on estimator.
 
     Args:
         estimator: classifier object used to fit the model used to calculate the area under the curve
+        multiclass: `True` if there are more than two target classes
 
     Returns:
         Dict linking name to scorer object and string name
     """
-    return (
-        {
+    if multiclass:
+        return {
             "augur_score": make_scorer(roc_auc_score, multi_class="ovo", needs_proba=True),
             "auc": make_scorer(roc_auc_score, multi_class="ovo", needs_proba=True),
             "accuracy": make_scorer(accuracy_score),
-            "precision": make_scorer(precision_score, average="micro"),
-            "f1": make_scorer(f1_score, average="micro"),
-            "recall": make_scorer(recall_score, average="micro"),
+            "precision": make_scorer(precision_score, average="macro"),
+            "f1": make_scorer(f1_score, average="macro"),
+            "recall": make_scorer(recall_score, average="macro"),
+        }
+    return (
+        {
+            "augur_score": make_scorer(roc_auc_score, needs_proba=True),
+            "auc": make_scorer(roc_auc_score, needs_proba=True),
+            "accuracy": make_scorer(accuracy_score),
+            "precision": make_scorer(precision_score, average="binary"),
+            "f1": make_scorer(f1_score, average="binary"),
+            "recall": make_scorer(recall_score, average="binary"),
         }
         if isinstance(estimator, RandomForestClassifier) or isinstance(estimator, LogisticRegression)
         else {
@@ -203,9 +251,9 @@ def run_cross_validation(
     Returns:
         Dictionary containing prediction metrics and estimator for each fold.
     """
-    scorer = set_scorer(estimator)
     x = subsample.to_df()
     y = subsample.obs["y_"]
+    scorer = set_scorer(estimator, multiclass=True if len(y.unique()) > 2 else False)
     folds = StratifiedKFold(n_splits=folds, random_state=random_state, shuffle=True)
 
     results = cross_validate(
@@ -264,6 +312,130 @@ def average_metrics(cell_cv_results: list[Any]) -> dict[Any, Any]:
     return {metric: np.mean(values) for metric, values in metric_list.items()}
 
 
+def select_highly_variable(adata: AnnData) -> AnnData:
+    """Feature selection by variance using scanpy highly variable genes function.
+
+    Args:
+        adata: Anndata object containing gene expression values (cells in rows, genes in columns)
+
+    Results:
+        Anndata object with highly variable genes added as layer
+    """
+    min_features_for_selection = 1000
+
+    if len(adata.var_names) - 2 > min_features_for_selection:
+        try:
+            sc.pp.highly_variable_genes(adata)
+        except ValueError:
+            print("[bold yellow]Data not normalized. Normalizing now using scanpy log1p normalize.")
+            sc.pp.log1p(adata)
+            sc.pp.highly_variable_genes(adata)
+
+    return adata
+
+
+def cox_compare(loess1, loess2):
+    """Cox compare test on two models.
+
+    Based on: https://www.statsmodels.org/dev/generated/statsmodels.stats.diagnostic.compare_cox.html
+    Info: Tests of non-nested hypothesis might not provide unambiguous answers.
+    The test should be performed in both directions and it is possible
+    that both or neither test rejects.
+
+    Args:
+        loess1: fitted loess regression object
+        loess2: fitted loess regression object
+
+    Returns:
+        t-statistic for the test that including the fitted values of the first model in the second model
+        has no effect and two-sided pvalue for the t-statistic
+    """
+    x = loess1.inputs.x
+    z = loess2.inputs.x
+
+    nobs = loess1.inputs.y.shape[0]
+
+    # coxtest
+    sigma2_x = np.sum(np.power(loess1.outputs.fitted_residuals, 2)) / nobs
+    sigma2_z = np.sum(np.power(loess2.outputs.fitted_residuals, 2)) / nobs
+    yhat_x = loess1.outputs.fitted_values
+    res_dx = sm.OLS(yhat_x, z).fit()
+    err_zx = res_dx.resid
+    res_xzx = sm.OLS(err_zx, x).fit()
+    err_xzx = res_xzx.resid
+
+    sigma2_zx = sigma2_x + np.dot(err_zx.T, err_zx) / nobs
+    c01 = nobs / 2.0 * (np.log(sigma2_z) - np.log(sigma2_zx))
+    v01 = sigma2_x * np.dot(err_xzx.T, err_xzx) / sigma2_zx ** 2
+    q = c01 / np.sqrt(v01)
+    pval = 2 * stats.norm.sf(np.abs(q))
+
+    return q, pval
+
+
+def select_variance(adata: AnnData, var_quantile: float, filter_negative_residuals: bool, span: float):
+    """Feature selection based on Augur implementation.
+
+    Args:
+        adata: Anndata object
+        var_quantile: the quantile below which features will be filtered, based on their residuals in a loess model;
+            defaults to `0.5`
+        filter_negative_residuals: if `True`, filter residuals at a fixed threshold of zero, instead of `var_quantile`
+        span: Smoothing factor, as a fraction of the number of points to take into account. Should be in the range
+            (0, 1]. Default is 0.75
+
+    Return:
+        AnnData object with additional select_variance column in var.
+    """
+    adata.var["highly_variable"] = False
+    adata.var["means"] = np.ravel(adata.X.mean(axis=0))
+    adata.var["sds"] = np.ravel(np.sqrt(adata.X.power(2).mean(axis=0) - np.power(adata.X.mean(axis=0), 2)))
+    # remove all features with 0 variance
+    adata.var.loc[adata.var["sds"] > 0, "highly_variable"] = True
+    cvs = adata.var.loc[adata.var["highly_variable"], "means"] / adata.var.loc[adata.var["highly_variable"], "sds"]
+
+    # clip outliers, get best prediction model, get residuals
+    lower = np.quantile(cvs, 0.01)
+    upper = np.quantile(cvs, 0.99)
+    keep = cvs.loc[cvs.between(lower, upper)].index
+
+    cv0 = cvs.loc[keep]
+    mean0 = adata.var.loc[keep, "means"]
+
+    print("[bold yellow]Set smaller span value in the case of a `segmentation fault` error.")
+    print("[bold yellow]Set larger span in case of svddc or other near singularities error.")
+    if any(mean0 < 0):
+        # if there are negative values, don't bother comparing to log-transformed
+        # means - fit on normalized data directly
+        model = loess(mean0, cv0, span=span)
+
+    else:
+        fit1 = loess(mean0, cv0, span=span)
+        fit1.fit()
+        fit2 = loess(np.log(mean0), cv0, span=span)
+        fit2.fit()
+
+        # use a cox test to guess whether we should be fitting the raw or
+        # log-transformed means
+        cox1 = cox_compare(fit1, fit2)
+        cox2 = cox_compare(fit2, fit1)
+
+        #  compare pvalues
+        if cox1[1] < cox2[1]:
+            model = fit1
+        else:
+            model = fit2
+
+    residuals = model.outputs.fitted_residuals
+
+    # select features by quantile (or override w/positive residuals)
+    genes = keep[residuals > 0] if filter_negative_residuals else keep[residuals > np.quantile(residuals, var_quantile)]
+
+    adata.var["highly_variable"] = [x in genes for x in adata.var.index]
+
+    return adata
+
+
 def predict(
     adata: AnnData,
     classifier: RandomForestClassifier | RandomForestRegressor | LogisticRegression,
@@ -272,9 +444,13 @@ def predict(
     folds: int = 3,
     min_cells: int = None,
     feature_perc: float = 0.5,
+    var_quantile: float = 0.5,
+    span: float = 0.75,
+    filter_negative_residuals: bool = False,
     n_threads: int = 4,
     show_progress: bool = True,
     augur_mode: Literal["permute"] | Literal["default"] | Literal["velocity"] = "default",
+    select_variance_features: bool = False,
     random_state: int | None = None,
 ) -> tuple[AnnData, dict[str, Any]]:
     """Calculates the Area under the Curve using the given classifier.
@@ -290,6 +466,11 @@ def predict(
             analysis (depricated..)
         feature_perc: proportion of genes that are randomly selected as features for input to the classifier in each
             subsample using the random gene filter
+        var_quantile: the quantile below which features will be filtered, based on their residuals in a loess model;
+            defaults to `0.5`
+        span: Smoothing factor, as a fraction of the number of points to take into account. Should be in the range
+            (0, 1]. Default is 0.75
+        filter_negative_residuals: if `True`, filter residuals at a fixed threshold of zero, instead of `var_quantile`
         n_threads: number of threads to use for parallelization
         show_progress: if `True` display a progress bar for the analysis with estimated time remaining
         augur_mode: one of default, velocity or permute. Setting augur_mode = "velocity" disables feature selection,
@@ -324,6 +505,17 @@ def predict(
     adata.obs["augur_score"] = nan
     for cell_type in track(adata.obs["cell_type"].unique(), description="Processing data."):
         cell_type_subsample = adata[adata.obs["cell_type"] == cell_type]
+        if augur_mode == "default" or augur_mode == "permute":
+            cell_type_subsample = (
+                select_highly_variable(cell_type_subsample)
+                if not select_variance_features
+                else select_variance(
+                    cell_type_subsample,
+                    var_quantile=var_quantile,
+                    filter_negative_residuals=filter_negative_residuals,
+                    span=span,
+                )
+            )
         if len(cell_type_subsample) < min_cells:
             print(
                 f"[bold red]Skipping {cell_type} cell type - {len(cell_type_subsample)} samples is less than min_cells {min_cells}."

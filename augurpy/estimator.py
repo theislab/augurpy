@@ -15,7 +15,7 @@ class Params:
 
     n_estimators: int = 100
     max_depth: int | None = None
-    max_features: Literal["auto"] | Literal["log2"] | Literal["sqrt"] | int | float = "auto"
+    max_features: Literal["auto"] | Literal["log2"] | Literal["sqrt"] | int | float = 2
     penalty: Literal["l1"] | Literal["l2"] | Literal["elasticnet"] | Literal["none"] = "l2"
     random_state: int | None = None
 

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import scanpy as sc
 from anndata import AnnData
 from pandas import DataFrame
 from rich import print
@@ -51,8 +50,6 @@ def load(
         x = input.drop([label_col, cell_type_col], axis=1) if meta is None else input
         adata = AnnData(X=x, obs=pd.DataFrame({"cell_type": cell_type, "label": label}))
 
-    adata = feature_selection(adata)
-
     if len(adata.obs["label"].unique()) < 2:
         raise ValueError("Less than two unique labels in dataset. At least two are needed for the analysis.")
     # dummie variables for categorical data
@@ -69,27 +66,5 @@ def load(
         y = adata.obs["label"].to_frame()
         y = y.rename(columns={"label": "y_"})
         adata.obs = pd.concat([adata.obs, y], axis=1)
-
-    return adata
-
-
-def feature_selection(adata: AnnData) -> AnnData:
-    """Feature selection by variance using scanpy highly variable genes.
-
-    Args:
-        adata: Anndata object containing gene expression values (cells in rows, genes in columns)
-
-    Results:
-        Anndata object with highly variable genes added as layer
-    """
-    min_features_for_selection = 1000
-
-    if len(adata.var_names) - 2 > min_features_for_selection:
-        try:
-            sc.pp.highly_variable_genes(adata)
-        except ValueError:
-            print("[bold yellow]Data not normalized. Normalizing now using scanpy log1p normalize.")
-            sc.pp.log1p(adata)
-            sc.pp.highly_variable_genes(adata)
 
     return adata
