@@ -13,7 +13,6 @@
 
    .. autosummary::
    
-      feature_selection
       load
    
    
